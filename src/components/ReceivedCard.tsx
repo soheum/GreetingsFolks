@@ -1,0 +1,683 @@
+"use client";
+
+import Image from "next/image";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { Button } from "./Button";
+import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
+import { postFallImage } from "@/lib/card-images";
+
+const FALL_MS = 1100;
+const HANDOFF_MS = 900;
+const FRAME_MS = 600;
+const ZOOM_MS = 1300;
+const FLAP_MS = 1400;
+const LETTER_FLIP_MS = 3000;
+
+/** Match PostcardStack letter sizing while writing */
+const LETTER_SIZE_MULTIPLIER = 1.125;
+/** Extra downward offset for the sealed see-through letter (percent of envelope height) */
+const SEALED_LETTER_TOP_NUDGE = 8;
+
+/** Fall ends tilted so straighten is visible on click */
+const FALL_END_ROTATE_DEG = -8;
+
+type ReceiveStage =
+  | "landing"
+  | "handing-off"
+  | "framing"
+  | "zooming"
+  | "opening-flap"
+  | "opening-letter"
+  | "reading";
+
+type HandoffPose = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
+type ReceivedCardProps = {
+  message: string;
+  cardTitle: string;
+  cardImage: string;
+  envelope: Envelope;
+};
+
+type FlapMode = "closed" | "opening" | "open";
+
+function letterWidthPercent(layer: EnvelopeLayer) {
+  return Math.min((layer.widthPercent ?? 50) * LETTER_SIZE_MULTIPLIER, 100);
+}
+
+function splitMessageColumns(message: string) {
+  // Matches combineCardMessage in PostcardStack: left + "\n\n" + right
+  const separator = "\n\n";
+  const index = message.indexOf(separator);
+
+  if (index === -1) {
+    return { left: message, right: "" };
+  }
+
+  return {
+    left: message.slice(0, index),
+    right: message.slice(index + separator.length),
+  };
+}
+
+function ReceiveTopFlap({
+  flap,
+  mode,
+}: {
+  flap: EnvelopeTopFlap;
+  mode: FlapMode;
+}) {
+  const widthPercent = flap.widthPercent ?? 100;
+  const topPercent = flap.topPercent ?? 0;
+  const showInside = mode === "open";
+
+  const modeClass =
+    mode === "closed"
+      ? "envelope-top-flap--closed envelope-top-flap--ready"
+      : mode === "opening"
+        ? "envelope-top-flap--opening envelope-top-flap--ready"
+        : "envelope-top-flap--open envelope-top-flap--ready";
+
+  return (
+    <div
+      className={`envelope-top-flap ${modeClass} pointer-events-none absolute left-1/2 top-[var(--top-flap-top)]`}
+      style={
+        {
+          "--top-flap-top": `${topPercent}%`,
+          width: `${widthPercent}%`,
+          aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
+          transform: "translateX(-50%)",
+        } as CSSProperties
+      }
+    >
+      <div className="envelope-top-flap-card h-full w-full">
+        {showInside ? (
+          <Image
+            src={flap.insideSrc}
+            alt=""
+            aria-hidden
+            width={flap.insideWidth}
+            height={flap.insideHeight}
+            priority
+            className="envelope-top-flap-face h-auto w-full"
+          />
+        ) : null}
+        <div className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full">
+          <Image
+            src={flap.outsideSrc}
+            alt=""
+            aria-hidden
+            width={flap.outsideWidth}
+            height={flap.outsideHeight}
+            priority
+            className="h-auto w-full"
+          />
+          {/* While sealed, sticker is rendered as a top overlay so letter can sit under it */}
+          {mode !== "closed" ? (
+            <Image
+              src="/images/sticker.png"
+              alt=""
+              aria-hidden
+              width={256}
+              height={256}
+              priority
+              unoptimized
+              className="envelope-flap-sticker"
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceiveLetter({
+  layer,
+  message,
+  mode,
+}: {
+  layer: EnvelopeLayer;
+  message: string;
+  mode: "pocketed" | "flipping" | "flipped";
+}) {
+  const topPercent = layer.topPercent ?? 50;
+  const backSrc = layer.backSrc!;
+  const backWidth = layer.backWidth!;
+  const backHeight = layer.backHeight!;
+  const { left, right } = splitMessageColumns(message);
+
+  if (mode === "pocketed") {
+    return (
+      <div
+        className="absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0"
+        style={
+          {
+            "--letter-top": `${topPercent}%`,
+            width: `${letterWidthPercent(layer)}%`,
+            transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            zIndex: layer.zIndex,
+          } as CSSProperties
+        }
+      >
+        <Image
+          src={layer.src}
+          alt=""
+          aria-hidden
+          width={layer.width}
+          height={layer.height}
+          priority
+          className="h-auto w-full"
+        />
+      </div>
+    );
+  }
+
+  const cardClass =
+    mode === "flipping"
+      ? "letter-flip-card letter-flip-card--receive block h-auto w-full"
+      : "letter-flip-card letter-flip-card--receive-done block h-auto w-full";
+
+  const composeClass =
+    mode === "flipping"
+      ? "letter-compose letter-compose--ready"
+      : "letter-compose letter-compose--visible";
+
+  return (
+    <div
+      className={`letter-flip-scene letter-flip-scene--receive absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
+        mode === "flipped" ? "letter-flip-scene--elevated" : ""
+      }`}
+      style={
+        {
+          "--letter-top": `${topPercent}%`,
+          "--letter-z-base": layer.zIndex,
+          "--letter-z-top": 50,
+          "--letter-open-scale": 1,
+          width: `${letterWidthPercent(layer)}%`,
+          transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+        } as CSSProperties
+      }
+    >
+      <div className={cardClass}>
+        <Image
+          src={layer.src}
+          alt=""
+          aria-hidden
+          width={layer.width}
+          height={layer.height}
+          priority
+          className="letter-flip-face h-auto w-full"
+        />
+        <div className="letter-flip-face letter-flip-face--back block h-auto w-full">
+          <Image
+            src={backSrc}
+            alt=""
+            aria-hidden
+            width={backWidth}
+            height={backHeight}
+            priority
+            className="h-auto w-full"
+          />
+          <div
+            className={`${composeClass} absolute inset-[8%_8%_9%] flex flex-col justify-end px-[0%] pb-[2%] pt-[10%]`}
+          >
+            <div className="letter-compose-columns flex h-[80%] w-full gap-1">
+              <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
+                {left}
+              </p>
+              <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
+                {right}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function motionClassForStage(stage: Exclude<ReceiveStage, "landing">) {
+  switch (stage) {
+    case "handing-off":
+      return "receive-envelope-motion--handoff";
+    case "framing":
+      return "receive-envelope-motion--framing";
+    case "zooming":
+      return "receive-envelope-motion--zooming";
+    default:
+      return "receive-envelope-motion--focused";
+  }
+}
+
+function flapModeForStage(stage: Exclude<ReceiveStage, "landing">): FlapMode {
+  if (stage === "opening-flap") {
+    return "opening";
+  }
+  if (stage === "opening-letter" || stage === "reading") {
+    return "open";
+  }
+  return "closed";
+}
+
+function letterModeForStage(
+  stage: Exclude<ReceiveStage, "landing">,
+): "pocketed" | "flipping" | "flipped" {
+  if (stage === "opening-letter") {
+    return "flipping";
+  }
+  if (stage === "reading") {
+    return "flipped";
+  }
+  return "pocketed";
+}
+
+function ReceiveEnvelopeOpen({
+  envelope,
+  message,
+  stage,
+  pose,
+  fallSrc,
+  cardTitle,
+}: {
+  envelope: Envelope;
+  message: string;
+  stage: Exclude<ReceiveStage, "landing">;
+  pose: HandoffPose;
+  fallSrc: string;
+  cardTitle: string;
+}) {
+  const layers = envelope.layers!;
+  const flap = envelope.topFlap!;
+  const fillLayer = layers.find((layer) => layer.anchor === "fill")!;
+  const letterLayer = layers.find((layer) => layer.anchor === "center")!;
+  const bottomLayer = layers.find((layer) => layer.anchor === "bottom")!;
+
+  const flapMode = flapModeForStage(stage);
+  const letterMode = letterModeForStage(stage);
+  const showPostOverlay = stage === "handing-off";
+  const isSealed = flapMode === "closed";
+  const baseReady = flapMode === "opening" || flapMode === "open";
+  // Closed look = bottom + top_outside + sticker (not fill — fill fights the sealed flap)
+  const showFill = !isSealed;
+
+  const showBottomBar =
+    stage === "framing" ||
+    stage === "zooming" ||
+    stage === "opening-flap" ||
+    stage === "opening-letter" ||
+    stage === "reading";
+
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [viewportOrigin, setViewportOrigin] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    const frame = viewportRef.current?.getBoundingClientRect();
+    if (!frame) {
+      return;
+    }
+    setViewportOrigin({ top: frame.top, left: frame.left });
+  }, []);
+
+  // Keep envelope portrait proportions so bottom/flap/sticker compose correctly.
+  // Shift up from the fallen letter box — pose.top alone still sits too low.
+  const handoffWidth = pose.width;
+  const handoffHeight = pose.width * (envelope.height / envelope.width);
+  const handoffLeft = pose.left - viewportOrigin.left;
+  const handoffTop =
+    pose.top - viewportOrigin.top - (handoffHeight - pose.height) * 1.2;
+  // Final size matches home (54vh × scale 2), without shrinking during framing
+  const homeFinalHeightPx =
+    (typeof window !== "undefined" ? window.innerHeight : 800) * 0.54 * 2;
+  const zoomScale = Math.max(homeFinalHeightPx / handoffHeight, 1);
+
+  return (
+    <section className="relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
+      <div ref={viewportRef} className="absolute inset-0 overflow-hidden">
+        <div
+          className={`receive-envelope-motion ${motionClassForStage(stage)}`}
+          style={
+            {
+              "--handoff-top": `${handoffTop}px`,
+              "--handoff-left": `${handoffLeft}px`,
+              "--handoff-width": `${handoffWidth}px`,
+              "--handoff-height": `${handoffHeight}px`,
+              "--envelope-aspect": `${envelope.width} / ${envelope.height}`,
+              "--fall-rotate": `${FALL_END_ROTATE_DEG}deg`,
+              "--zoom-scale": String(zoomScale),
+            } as CSSProperties
+          }
+          role="img"
+          aria-label={envelope.alt}
+        >
+          <div className="receive-envelope-stack relative h-full w-full">
+            {showFill ? (
+              <Image
+                src={fillLayer.src}
+                alt=""
+                aria-hidden
+                width={fillLayer.width}
+                height={fillLayer.height}
+                priority
+                style={{ zIndex: fillLayer.zIndex }}
+                className="receive-envelope-fill pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
+              />
+            ) : null}
+
+            {flap.bottomInsideSrc &&
+              flap.bottomInsideWidth &&
+              flap.bottomInsideHeight && (
+                <Image
+                  src={flap.bottomInsideSrc}
+                  alt=""
+                  aria-hidden
+                  width={flap.bottomInsideWidth}
+                  height={flap.bottomInsideHeight}
+                  priority
+                  style={{ zIndex: 1 }}
+                  className={`envelope-composed-base pointer-events-none absolute bottom-0 left-0 h-auto w-full ${
+                    baseReady ? "envelope-composed-base--ready" : ""
+                  }`}
+                />
+              )}
+
+            {!isSealed && letterLayer.backSrc ? (
+              <ReceiveLetter
+                layer={letterLayer}
+                message={message}
+                mode={letterMode}
+              />
+            ) : null}
+
+            <Image
+              src={bottomLayer.src}
+              alt=""
+              aria-hidden
+              width={bottomLayer.width}
+              height={bottomLayer.height}
+              priority
+              style={{ zIndex: bottomLayer.zIndex }}
+              className="pointer-events-none absolute bottom-0 left-0 h-auto w-full"
+            />
+
+            <ReceiveTopFlap flap={flap} mode={flapMode} />
+
+            {isSealed ? (
+              <>
+                <div
+                  className="pointer-events-none absolute left-1/2 top-[var(--letter-top)] z-[70] opacity-20"
+                  style={
+                    {
+                      "--letter-top": `${Math.min((letterLayer.topPercent ?? 50) + SEALED_LETTER_TOP_NUDGE, 88)}%`,
+                      width: `${letterWidthPercent(letterLayer)}%`,
+                      transform: `translate(-50%, -50%) rotate(${letterLayer.rotate ?? 0}deg)`,
+                    } as CSSProperties
+                  }
+                >
+                  <Image
+                    src={letterLayer.src}
+                    alt=""
+                    aria-hidden
+                    width={letterLayer.width}
+                    height={letterLayer.height}
+                    priority
+                    className="h-auto w-full"
+                  />
+                </div>
+                {/* Same closed-flap 3D as ReceiveTopFlap so seal position matches */}
+                <div
+                  className="pointer-events-none absolute left-1/2 z-[80]"
+                  style={
+                    {
+                      top: `${flap.topPercent ?? 0}%`,
+                      width: `${flap.widthPercent ?? 100}%`,
+                      aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
+                      transform: "translateX(-50%)",
+                      perspective: "1200px",
+                    } as CSSProperties
+                  }
+                >
+                  <div
+                    className="relative h-full w-full"
+                    style={{
+                      transformOrigin: "center 96%",
+                      transform: "rotateX(180deg)",
+                      transformStyle: "preserve-3d",
+                    }}
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{ transform: "rotateX(180deg)" }}
+                    >
+                      <Image
+                        src="/images/sticker.png"
+                        alt=""
+                        aria-hidden
+                        width={256}
+                        height={256}
+                        priority
+                        unoptimized
+                        className="envelope-flap-sticker"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            {showPostOverlay ? (
+              <Image
+                src={fallSrc}
+                alt={cardTitle}
+                width={636}
+                height={529}
+                priority
+                unoptimized
+                className="receive-post-handoff pointer-events-none absolute inset-0 z-[90] h-full w-full object-contain drop-shadow-[0_18px_30px_rgba(0,0,0,0.28)]"
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`absolute inset-x-0 bottom-0 z-50 flex items-center justify-between gap-4 border-t border-neutral-200 bg-white px-6 py-4 transition-opacity duration-700 ease-out ${
+          showBottomBar
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden={!showBottomBar}
+      >
+        <h3 className="truncate">{envelope.title}</h3>
+        <div className="flex shrink-0 items-center gap-3">
+          <Button variant="outline">View details</Button>
+          <Button variant="primary" size="md" href="/">
+            Send reply
+            <span aria-hidden className="text-sm leading-none">
+              ↗
+            </span>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function ReceivedCard({
+  message,
+  cardTitle,
+  cardImage,
+  envelope,
+}: ReceivedCardProps) {
+  const [stage, setStage] = useState<ReceiveStage>("landing");
+  const [fallDone, setFallDone] = useState(false);
+  const [pose, setPose] = useState<HandoffPose | null>(null);
+  const letterBtnRef = useRef<HTMLButtonElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const fallSrc = postFallImage(cardImage);
+
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach((id) => clearTimeout(id));
+    timersRef.current = [];
+  }, []);
+
+  const schedule = useCallback((fn: () => void, delay: number) => {
+    const id = setTimeout(fn, delay);
+    timersRef.current.push(id);
+  }, []);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  useEffect(() => {
+    const id = setTimeout(() => setFallDone(true), FALL_MS);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    const open = stage !== "landing";
+    document.body.classList.toggle("envelope-zoom-active", open);
+    return () => {
+      document.body.classList.remove("envelope-zoom-active");
+    };
+  }, [stage]);
+
+  const startOpen = useCallback(() => {
+    if (stage !== "landing" || !fallDone) {
+      return;
+    }
+
+    const el = letterBtnRef.current;
+    if (!el) {
+      return;
+    }
+
+    const rect = el.getBoundingClientRect();
+    setPose({
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    });
+
+    clearTimers();
+    setStage("handing-off");
+
+    let t = HANDOFF_MS;
+    schedule(() => setStage("framing"), t);
+
+    t += FRAME_MS;
+    schedule(() => setStage("zooming"), t);
+
+    t += ZOOM_MS;
+    schedule(() => setStage("opening-flap"), t);
+
+    t += FLAP_MS;
+    schedule(() => setStage("opening-letter"), t);
+
+    t += LETTER_FLIP_MS;
+    schedule(() => setStage("reading"), t);
+  }, [stage, fallDone, clearTimers, schedule]);
+
+  if (stage === "landing") {
+    return (
+      <section className="post-landing relative flex min-h-0 flex-1 items-end justify-center overflow-hidden bg-[#DF0000] md:items-center">
+        <div className="post-stage relative">
+          <Image
+            src="/images/post_bottom_mobile.jpg"
+            alt=""
+            aria-hidden
+            width={1080}
+            height={1920}
+            priority
+            unoptimized
+            className="absolute inset-0 z-0 h-full w-full object-contain md:hidden"
+          />
+          <Image
+            src="/images/post_bottom.jpg"
+            alt=""
+            aria-hidden
+            width={1920}
+            height={1080}
+            priority
+            unoptimized
+            className="absolute inset-0 z-0 hidden h-full w-full object-contain md:block"
+          />
+
+          {fallDone ? (
+            <p className="pointer-events-none absolute top-[10%] left-1/2 z-30 w-[90%] -translate-x-1/2 text-center text-white">
+              Click on the letter to open the card
+            </p>
+          ) : null}
+
+          <button
+            ref={letterBtnRef}
+            type="button"
+            aria-label={`Open ${cardTitle}`}
+            disabled={!fallDone}
+            onClick={startOpen}
+            className={`letter-fall absolute left-1/2 z-10 w-[75%] border-0 bg-transparent p-0 md:w-[37.8%] ${
+              fallDone ? "letter-fall--done cursor-pointer" : "cursor-default"
+            }`}
+          >
+            <Image
+              src={fallSrc}
+              alt={cardTitle}
+              width={636}
+              height={529}
+              priority
+              unoptimized
+              className="h-auto w-full drop-shadow-[0_18px_30px_rgba(0,0,0,0.28)]"
+            />
+          </button>
+
+          <Image
+            src="/images/post_top_mobile.png"
+            alt=""
+            aria-hidden
+            width={1080}
+            height={1920}
+            priority
+            unoptimized
+            className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain md:hidden"
+          />
+          <Image
+            src="/images/post_top.png"
+            alt=""
+            aria-hidden
+            width={1920}
+            height={1080}
+            priority
+            unoptimized
+            className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full object-contain md:block"
+          />
+        </div>
+      </section>
+    );
+  }
+
+  if (!pose) {
+    return null;
+  }
+
+  return (
+    <ReceiveEnvelopeOpen
+      envelope={envelope}
+      message={message}
+      stage={stage}
+      pose={pose}
+      fallSrc={fallSrc}
+      cardTitle={cardTitle}
+    />
+  );
+}
