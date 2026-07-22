@@ -17,8 +17,8 @@ export function cardEmailImage(cardImage: string) {
   return `/images/flat${num}_email.jpg`;
 }
 
-/** Receive landing fall art: flat_1.webp → flat_1_post.png */
+/** Receive landing fall art: flat_1.webp → flat_1_post.webp */
 export function postFallImage(cardImage: string) {
   const num = cardImageNumber(cardImage);
-  return `/images/flat_${num}_post.png`;
+  return `/images/flat_${num}_post.webp`;
 }

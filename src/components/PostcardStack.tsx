@@ -11,19 +11,26 @@ import {
   type EnvelopeLayer,
   type EnvelopeTopFlap,
 } from "@/data/envelopes";
+import { useLocale } from "@/lib/locale";
 
-const CENTER_HEIGHT = "54vh";
-const SIDE_HEIGHT = "28vh";
+const CENTER_HEIGHT = "59vh";
+const SIDE_HEIGHT = "40vh";
 const ZOOM_SCALE = 2;
 const LETTER_OPEN_SCALE = 2;
-const ROW_GAP = "0.25rem";
+const ROW_GAP = "0.75rem";
 const WHEEL_COOLDOWN_MS = 650;
 const NEIGHBOR_HIDE_MS = 500;
 const ZOOM_GROW_MS = 1300;
 const ZOOM_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const CAROUSEL_CHROME_OFFSET = "13rem";
-const ZOOMED_CHROME_OFFSET = "8rem";
+const ZOOMED_CHROME_OFFSET = "4rem";
+/** Upward shift after the envelope flips to the address side */
+const ADDRESSING_TRANSLATE_Y = "-36vh";
+const CLOSING_FLAP_TRANSLATE_Y = "-20vh";
 const LETTER_FLIP_REVEAL_MS = 3000;
+const LETTER_LIFT_SETTLE_MS = 2400;
+const LETTER_LIFT_ROTATE_SETTLE_MS = 2800;
+const LETTER_FOLD_OPEN_MS = 6000;
 const LETTER_INSERT_LIFT_MS = 1200;
 const LETTER_INSERT_FLIP_MS = 800;
 const LETTER_INSERT_DROP_MS = 1200;
@@ -39,26 +46,27 @@ const SUCCESS_POSTBOX_MS = 300;
 /** Envelope moves up into the slot (and fades out) */
 const SUCCESS_POSTING_MS = 1600;
 const MAX_MESSAGE_LENGTH = 420;
+const MAX_COLUMN_LENGTH = MAX_MESSAGE_LENGTH / 2;
+/** Fold-split cards (flat_5): each panel is tall — needs its own budget to fill to the crease. */
+const MAX_FOLD_PANEL_LENGTH = 300;
+const MAX_FOLD_MESSAGE_LENGTH = MAX_FOLD_PANEL_LENGTH * 2;
 const LETTER_SIZE_MULTIPLIER = 1.125;
 /** Shift the address-side peek letter up (percent of back panel height) */
-const BACK_PEEK_LETTER_TOP_NUDGE = 12;
+const BACK_PEEK_LETTER_TOP_NUDGE = 20;
 /** Scale the address-side peek letter vs normal letter width (1.1 = 10% bigger) */
 const BACK_PEEK_LETTER_SCALE = 1.05;
+/** Pause after last Sender keystroke before revealing the stamp */
+const STAMP_REVEAL_IDLE_MS = 1200;
 const CAROUSEL_LOOP_COPIES = 3;
 const CAROUSEL_CENTER_COPY = 1;
-
-function formatDisplayDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-}
+/** Wait for the carousel slide to settle, then a short beat, before opening the flap */
+const CAROUSEL_FLAP_PAUSE_MS = 400;
+/** Must match `.envelope-top-flap--opening` animation duration */
+const CAROUSEL_FLAP_OPEN_MS = 100;
 
 function generateRefNumber() {
   return `#${crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`;
 }
-const MAX_COLUMN_LENGTH = MAX_MESSAGE_LENGTH / 2;
 
 function letterWidthPercent(layer: EnvelopeLayer) {
   return Math.min((layer.widthPercent ?? 50) * LETTER_SIZE_MULTIPLIER, 100);
@@ -66,14 +74,76 @@ function letterWidthPercent(layer: EnvelopeLayer) {
 
 function addressingEnvelopeScale(envelope: Envelope) {
   const letterLayer = envelope.layers?.find(
-    (layer) => layer.anchor === "center" && layer.backSrc,
+    (layer) => layer.anchor === "center",
   );
+  const baseScale = envelope.zoomScale ?? LETTER_OPEN_SCALE;
 
   if (!letterLayer) {
-    return LETTER_OPEN_SCALE;
+    return baseScale;
   }
 
-  return LETTER_OPEN_SCALE * (letterWidthPercent(letterLayer) / 100);
+  return baseScale * (letterWidthPercent(letterLayer) / 100);
+}
+
+function envelopeZoomScale(envelope: Envelope) {
+  return envelope.zoomScale ?? ZOOM_SCALE;
+}
+
+function envelopeZoomTranslateY(envelope: Envelope) {
+  return envelope.zoomTranslateY ?? "0px";
+}
+
+function letterHasBack(layer: EnvelopeLayer) {
+  return Boolean(layer.backSrc && layer.backWidth && layer.backHeight);
+}
+
+function letterUsesLiftSettle(layer: EnvelopeLayer) {
+  return layer.letterOpenMotion === "lift-settle";
+}
+
+function letterUsesLiftRotateSettle(layer: EnvelopeLayer) {
+  return layer.letterOpenMotion === "lift-rotate-settle";
+}
+
+function letterUsesFoldOpen(layer: EnvelopeLayer) {
+  return (
+    layer.letterOpenMotion === "fold-open" &&
+    Boolean(layer.insideSrc && layer.insideWidth && layer.insideHeight)
+  );
+}
+
+function letterComposesOnFront(layer: EnvelopeLayer) {
+  return (
+    !letterHasBack(layer) ||
+    letterUsesLiftSettle(layer) ||
+    letterUsesLiftRotateSettle(layer) ||
+    letterUsesFoldOpen(layer)
+  );
+}
+
+/** Front-compose letters that still need a mid insert step (reorient), not a Y-flip */
+function letterNeedsInsertReorient(layer: EnvelopeLayer) {
+  return letterUsesLiftRotateSettle(layer);
+}
+
+function letterOpenRevealMs(layer: EnvelopeLayer) {
+  if (letterUsesFoldOpen(layer)) {
+    return LETTER_FOLD_OPEN_MS;
+  }
+  if (letterUsesLiftRotateSettle(layer)) {
+    return LETTER_LIFT_ROTATE_SETTLE_MS;
+  }
+  if (letterUsesLiftSettle(layer)) {
+    return LETTER_LIFT_SETTLE_MS;
+  }
+  if (letterHasBack(layer)) {
+    return LETTER_FLIP_REVEAL_MS;
+  }
+  return 0;
+}
+
+function envelopeLetterLayer(envelope: Envelope) {
+  return envelope.layers?.find((layer) => layer.anchor === "center");
 }
 
 type ZoomPhase = "hiding" | "growing" | "done";
@@ -88,9 +158,19 @@ type ComposeStage =
   | "sending"
   | "success";
 type SuccessPhase = "tilt" | "postbox" | "posting" | "done";
+type ServiceClass = "first" | "second";
 
 type InsertStep = "lift" | "flip" | "insert" | "done";
-type TopFlapStep = "open" | "closing" | "closed";
+type TopFlapStep = "open" | "opening" | "closing" | "closed";
+
+function hasCarouselFlapReveal(envelope: Envelope) {
+  const flap = envelope.topFlap;
+  return Boolean(
+    flap?.insideSrc && flap.outsideSrc && flap.backSrc,
+  );
+}
+
+const SERVICE_CLASS_OPTIONS: ServiceClass[] = ["first", "second"];
 
 function getInsertStep(composeStage: ComposeStage | null): InsertStep | null {
   if (composeStage === "closing-lift") {
@@ -162,7 +242,11 @@ function hasCardMessage(left: string, right: string) {
   return Boolean(left.trim() || right.trim());
 }
 
-function splitTextToFitColumn(text: string, reference: HTMLTextAreaElement) {
+function splitTextToFitColumn(
+  text: string,
+  reference: HTMLTextAreaElement,
+  maxLength: number = MAX_COLUMN_LENGTH,
+) {
   const measure = document.createElement("textarea");
   const styles = window.getComputedStyle(reference);
 
@@ -186,7 +270,7 @@ function splitTextToFitColumn(text: string, reference: HTMLTextAreaElement) {
 
   document.body.appendChild(measure);
 
-  let left = text.slice(0, MAX_COLUMN_LENGTH);
+  let left = text.slice(0, maxLength);
   measure.value = left;
 
   while (left.length > 0 && measure.scrollHeight > measure.clientHeight) {
@@ -196,8 +280,22 @@ function splitTextToFitColumn(text: string, reference: HTMLTextAreaElement) {
 
   document.body.removeChild(measure);
 
-  const overflow = text.slice(left.length, MAX_COLUMN_LENGTH) + text.slice(MAX_COLUMN_LENGTH);
+  const overflow = text.slice(left.length, maxLength) + text.slice(maxLength);
   return { left, overflow };
+}
+
+/** One continuous message across fold panels: fill top, remainder in bottom. */
+function reflowFoldSplit(
+  fullText: string,
+  topEl: HTMLTextAreaElement,
+  bottomEl: HTMLTextAreaElement,
+  panelMax: number = MAX_FOLD_PANEL_LENGTH,
+) {
+  const budget = Math.min(fullText.length, MAX_FOLD_MESSAGE_LENGTH);
+  const clipped = fullText.slice(0, budget);
+  const { left: top, overflow } = splitTextToFitColumn(clipped, topEl, panelMax);
+  const { left: bottom } = splitTextToFitColumn(overflow, bottomEl, panelMax);
+  return { top, bottom };
 }
 
 function envelopeKey(envelope: Envelope) {
@@ -293,9 +391,28 @@ function LetterFlipLayer({
   const leftRef = useRef<HTMLTextAreaElement>(null);
   const rightRef = useRef<HTMLTextAreaElement>(null);
   const topPercent = layer.topPercent ?? 50;
-  const backSrc = layer.backSrc!;
-  const backWidth = layer.backWidth!;
-  const backHeight = layer.backHeight!;
+  const hasBack = letterHasBack(layer);
+  const usesLiftSettle = letterUsesLiftSettle(layer);
+  const usesLiftRotateSettle = letterUsesLiftRotateSettle(layer);
+  const usesFoldOpen = letterUsesFoldOpen(layer);
+  const composeOnFront = letterComposesOnFront(layer);
+  const isSingleColumn = layer.composeLayout === "single";
+  const isFoldSplit = layer.composeLayout === "fold-split";
+  // Each fold panel gets the same budget so top filling doesn't starve the bottom.
+  const maxFieldLength = isFoldSplit
+    ? MAX_FOLD_PANEL_LENGTH
+    : isSingleColumn
+      ? MAX_MESSAGE_LENGTH
+      : MAX_COLUMN_LENGTH;
+  const maxBottomLength = isFoldSplit
+    ? MAX_FOLD_PANEL_LENGTH
+    : MAX_COLUMN_LENGTH;
+  const backSrc = layer.backSrc;
+  const backWidth = layer.backWidth;
+  const backHeight = layer.backHeight;
+  const insideSrc = layer.insideSrc;
+  const insideWidth = layer.insideWidth;
+  const insideHeight = layer.insideHeight;
   const canWrite = isSendable && composeStage === "writing";
   const insertStep = getInsertStep(composeStage ?? null);
   const isInserting = insertStep !== null;
@@ -306,18 +423,57 @@ function LetterFlipLayer({
       composeStage === "closing-flip");
   const leftValue = messageLeft ?? "";
   const rightValue = messageRight ?? "";
-  const textareaClassName =
-    "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 pt-1 pb-3 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none";
+  const textareaClassName = isFoldSplit
+    ? "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none"
+    : "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 pt-1 pb-3 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none";
 
   const handleLeftChange = (value: string) => {
     const el = leftRef.current;
-    if (!el) {
-      onMessageLeftChange?.(value.slice(0, MAX_COLUMN_LENGTH));
+
+    if (isFoldSplit) {
+      const rightEl = rightRef.current;
+      if (!el || !rightEl) {
+        onMessageLeftChange?.(value.slice(0, MAX_FOLD_MESSAGE_LENGTH));
+        return;
+      }
+
+      const previousBottom = rightValue;
+      const { top, bottom } = reflowFoldSplit(
+        value + rightValue,
+        el,
+        rightEl,
+        maxFieldLength,
+      );
+      onMessageLeftChange?.(top);
+      onMessageRightChange?.(bottom);
+
+      if (bottom.length > previousBottom.length && value.length >= top.length) {
+        const spilled = bottom.length - previousBottom.length;
+        requestAnimationFrame(() => {
+          rightRef.current?.focus();
+          const position = Math.min(spilled, bottom.length);
+          rightRef.current?.setSelectionRange(position, position);
+        });
+      }
       return;
     }
 
-    const { left, overflow } = splitTextToFitColumn(value, el);
-    onMessageLeftChange?.(left);
+    if (!el) {
+      onMessageLeftChange?.(value.slice(0, maxFieldLength));
+      if (isSingleColumn) {
+        onMessageRightChange?.("");
+      }
+      return;
+    }
+
+    const { left, overflow } = splitTextToFitColumn(value, el, maxFieldLength);
+    const fitted = left.slice(0, maxFieldLength);
+    onMessageLeftChange?.(fitted);
+
+    if (isSingleColumn) {
+      onMessageRightChange?.("");
+      return;
+    }
 
     if (overflow) {
       const rightEl = rightRef.current;
@@ -325,7 +481,11 @@ function LetterFlipLayer({
         return;
       }
 
-      const { left: fittedRight } = splitTextToFitColumn(overflow + rightValue, rightEl);
+      const { left: fittedRight } = splitTextToFitColumn(
+        overflow + rightValue,
+        rightEl,
+        maxBottomLength,
+      );
       onMessageRightChange?.(fittedRight);
       requestAnimationFrame(() => {
         rightRef.current?.focus();
@@ -336,6 +496,35 @@ function LetterFlipLayer({
   };
 
   const appendToRightColumn = (text: string) => {
+    if (isSingleColumn) {
+      return;
+    }
+
+    if (isFoldSplit) {
+      const topEl = leftRef.current;
+      const rightEl = rightRef.current;
+      if (!topEl || !rightEl) {
+        return;
+      }
+
+      const previousBottom = rightValue;
+      const { top, bottom } = reflowFoldSplit(
+        leftValue + rightValue + text,
+        topEl,
+        rightEl,
+        maxFieldLength,
+      );
+      onMessageLeftChange?.(top);
+      onMessageRightChange?.(bottom);
+      requestAnimationFrame(() => {
+        rightRef.current?.focus();
+        const spilled = Math.max(bottom.length - previousBottom.length, 0);
+        const position = Math.min(spilled, bottom.length);
+        rightRef.current?.setSelectionRange(position, position);
+      });
+      return;
+    }
+
     const rightEl = rightRef.current;
     if (!rightEl) {
       return;
@@ -345,7 +534,11 @@ function LetterFlipLayer({
     const selectionEnd = rightEl.selectionEnd ?? rightValue.length;
     const candidate =
       rightValue.slice(0, selectionStart) + text + rightValue.slice(selectionEnd);
-    const { left: fittedRight } = splitTextToFitColumn(candidate, rightEl);
+    const { left: fittedRight } = splitTextToFitColumn(
+      candidate,
+      rightEl,
+      maxBottomLength,
+    );
 
     onMessageRightChange?.(fittedRight);
     requestAnimationFrame(() => {
@@ -370,24 +563,78 @@ function LetterFlipLayer({
       return;
     }
 
-    const { left, overflow } = splitTextToFitColumn(leftValue + event.key, el);
+    if (isFoldSplit) {
+      const rightEl = rightRef.current;
+      if (!rightEl) {
+        return;
+      }
+
+      const previousBottom = rightValue;
+      const { top, bottom } = reflowFoldSplit(
+        leftValue + event.key + rightValue,
+        el,
+        rightEl,
+        maxFieldLength,
+      );
+      if (top.length >= leftValue.length + 1) {
+        return;
+      }
+
+      event.preventDefault();
+      onMessageLeftChange?.(top);
+      onMessageRightChange?.(bottom);
+      requestAnimationFrame(() => {
+        rightRef.current?.focus();
+        const spilled = Math.max(bottom.length - previousBottom.length, 1);
+        const position = Math.min(spilled, bottom.length);
+        rightRef.current?.setSelectionRange(position, position);
+      });
+      return;
+    }
+
+    const { left, overflow } = splitTextToFitColumn(
+      leftValue + event.key,
+      el,
+      maxFieldLength,
+    );
     if (!overflow) {
       return;
     }
 
     event.preventDefault();
-    onMessageLeftChange?.(left);
-    appendToRightColumn(overflow);
+    onMessageLeftChange?.(left.slice(0, maxFieldLength));
+    if (!isSingleColumn) {
+      appendToRightColumn(overflow);
+    }
   };
 
   const handleRightChange = (value: string) => {
-    const el = rightRef.current;
-    if (!el) {
-      onMessageRightChange?.(value.slice(0, MAX_COLUMN_LENGTH));
+    if (isFoldSplit) {
+      const topEl = leftRef.current;
+      const el = rightRef.current;
+      if (!topEl || !el) {
+        onMessageRightChange?.(value.slice(0, maxBottomLength));
+        return;
+      }
+
+      const { top, bottom } = reflowFoldSplit(
+        leftValue + value,
+        topEl,
+        el,
+        maxFieldLength,
+      );
+      onMessageLeftChange?.(top);
+      onMessageRightChange?.(bottom);
       return;
     }
 
-    const { left } = splitTextToFitColumn(value, el);
+    const el = rightRef.current;
+    if (!el) {
+      onMessageRightChange?.(value.slice(0, maxBottomLength));
+      return;
+    }
+
+    const { left } = splitTextToFitColumn(value, el, maxBottomLength);
     onMessageRightChange?.(left);
   };
 
@@ -397,11 +644,36 @@ function LetterFlipLayer({
     if (
       event.key === "Backspace" &&
       target.selectionStart === 0 &&
-      target.selectionEnd === 0 &&
-      rightValue.length === 0
+      target.selectionEnd === 0
     ) {
-      leftRef.current?.focus();
-      return;
+      if (isFoldSplit) {
+        event.preventDefault();
+        const topEl = leftRef.current;
+        const bottomEl = rightRef.current;
+        if (!topEl || !bottomEl || leftValue.length === 0) {
+          leftRef.current?.focus();
+          return;
+        }
+
+        const { top, bottom } = reflowFoldSplit(
+          leftValue.slice(0, -1) + rightValue,
+          topEl,
+          bottomEl,
+          maxFieldLength,
+        );
+        onMessageLeftChange?.(top);
+        onMessageRightChange?.(bottom);
+        requestAnimationFrame(() => {
+          leftRef.current?.focus();
+          leftRef.current?.setSelectionRange(top.length, top.length);
+        });
+        return;
+      }
+
+      if (rightValue.length === 0) {
+        leftRef.current?.focus();
+        return;
+      }
     }
 
     const isPrintable =
@@ -418,7 +690,11 @@ function LetterFlipLayer({
       return;
     }
 
-    const { left, overflow } = splitTextToFitColumn(rightValue + event.key, target);
+    const { left, overflow } = splitTextToFitColumn(
+      rightValue + event.key,
+      target,
+      maxBottomLength,
+    );
     if (!overflow) {
       return;
     }
@@ -427,13 +703,254 @@ function LetterFlipLayer({
     onMessageRightChange?.(left);
   };
 
+  const composeInsetClass =
+    layer.composeShape === "oval-bottom"
+      ? "letter-compose--oval-bottom"
+      : layer.composeShape === "taper-bottom"
+        ? "letter-compose--taper-bottom"
+        : usesFoldOpen
+          ? "inset-[15%_15%_15%_20%]"
+          : (layer.composeInset ?? "inset-[14%_14%_4%]");
+  const composeColumnsClass =
+    layer.composeShape === "oval-bottom"
+      ? "letter-compose-columns flex h-full w-full gap-1"
+      : isFoldSplit
+        ? "letter-compose-columns letter-compose-columns--fold-split flex h-full w-full flex-col"
+        : layer.composeShape === "taper-bottom"
+          ? "letter-compose-columns flex h-full w-full gap-1"
+          : usesLiftRotateSettle || isSingleColumn
+            ? `letter-compose-columns flex ${usesLiftRotateSettle ? "h-full" : "h-[80%]"} w-full`
+            : "letter-compose-columns flex h-[80%] w-full gap-1";
+  const composeClassName = `letter-compose absolute ${composeInsetClass} flex flex-col px-[0%] ${
+    layer.composeShape === "oval-bottom"
+      ? "justify-start pt-[2%] pb-[0%]"
+      : layer.composeShape === "taper-bottom" || isFoldSplit
+        ? "justify-start pt-[0%] pb-[0%]"
+        : usesLiftRotateSettle
+          ? "justify-start pt-[0%] pb-[0%]"
+          : usesFoldOpen
+            ? "justify-start pt-[0%] pb-[2%]"
+            : "justify-end pt-[10%] pb-[2%]"
+  } ${
+    !showComposeMessage
+      ? "pointer-events-none opacity-0"
+      : canWrite
+        ? hasBack || usesLiftSettle || usesLiftRotateSettle || usesFoldOpen
+          ? "letter-compose--ready"
+          : "letter-compose--visible"
+        : "letter-compose--visible pointer-events-none"
+  }`;
+
+  const composeFields = (
+    <div
+      className={composeColumnsClass}
+      style={
+        layer.composeLineHeight != null
+          ? ({
+              "--text-letter--line-height": String(layer.composeLineHeight),
+            } as CSSProperties)
+          : undefined
+      }
+    >
+      <label className="sr-only" htmlFor="card-message-left">
+        {isSingleColumn || isFoldSplit
+          ? "Write your card message"
+          : "Write your card message, left column"}
+      </label>
+      <textarea
+        ref={leftRef}
+        id="card-message-left"
+        value={leftValue}
+        maxLength={isFoldSplit ? MAX_FOLD_MESSAGE_LENGTH : maxFieldLength}
+        readOnly={!canWrite}
+        onChange={(event) => handleLeftChange(event.target.value)}
+        onKeyDown={handleLeftKeyDown}
+        placeholder="Write your letter here..."
+        className={textareaClassName}
+      />
+      {!isSingleColumn ? (
+        <>
+          <label className="sr-only" htmlFor="card-message-right">
+            {isFoldSplit
+              ? "Write your card message, continued"
+              : "Write your card message, right column"}
+          </label>
+          <textarea
+            ref={rightRef}
+            id="card-message-right"
+            value={rightValue}
+            maxLength={isFoldSplit ? MAX_FOLD_MESSAGE_LENGTH : maxBottomLength}
+            readOnly={!canWrite}
+            onChange={(event) => handleRightChange(event.target.value)}
+            onKeyDown={handleRightKeyDown}
+            placeholder={
+              isFoldSplit
+                ? ""
+                : leftValue.length >= MAX_COLUMN_LENGTH
+                  ? "Continue here..."
+                  : ""
+            }
+            className={textareaClassName}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+
   if (isSendable) {
+    if (usesFoldOpen && insideSrc && insideWidth && insideHeight) {
+      if (isInserting) {
+        return (
+          <div
+            className={`letter-insert-scene letter-insert-scene--${insertStep} absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0`}
+            style={
+              {
+                "--letter-top": `${topPercent}%`,
+                "--letter-z-base": layer.zIndex,
+                "--letter-z-top": 50,
+                width: `${letterWidthPercent(layer)}%`,
+                transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+              } as CSSProperties
+            }
+          >
+            <div
+              className={`letter-insert-card letter-insert-card--${insertStep} letter-insert-card--front block h-auto w-full`}
+            >
+              <div className="relative block h-auto w-full">
+                <Image
+                  src={insideSrc}
+                  alt=""
+                  aria-hidden
+                  width={insideWidth}
+                  height={insideHeight}
+                  priority={priority}
+                  className="h-auto w-full"
+                />
+                <div
+                  className={composeClassName}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {composeFields}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className="letter-fold-open-scene absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0"
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              width: `${letterWidthPercent(layer)}%`,
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          <div className="letter-fold-open-mover">
+            <div className="letter-fold-closed">
+              <div className="letter-fold-closed-inner">
+                <Image
+                  src={layer.src}
+                  alt=""
+                  aria-hidden
+                  width={layer.width}
+                  height={layer.height}
+                  priority={priority}
+                  className="h-auto w-full"
+                />
+              </div>
+            </div>
+            <div className="letter-fold-opened">
+              <div className="letter-fold-opened-inner">
+                <Image
+                  src={insideSrc}
+                  alt=""
+                  aria-hidden
+                  width={insideWidth}
+                  height={insideHeight}
+                  priority={priority}
+                  className="h-auto w-full"
+                />
+                <div
+                  className={composeClassName}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {composeFields}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (usesLiftRotateSettle) {
+      const insertMoverClass = isInserting
+        ? `letter-lift-rotate-settle-mover letter-lift-rotate-settle-mover--${insertStep}`
+        : "letter-lift-rotate-settle-mover";
+      const insertSpinClass = isInserting
+        ? `letter-lift-rotate-settle-spin letter-lift-rotate-settle-spin--${insertStep}`
+        : "letter-lift-rotate-settle-spin";
+
+      return (
+        <div
+          className={`absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
+            isInserting
+              ? `letter-insert-scene letter-insert-scene--${insertStep}`
+              : "letter-lift-rotate-settle-scene"
+          }`}
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              "--letter-open-scale": 1,
+              width: `${letterWidthPercent(layer)}%`,
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          {/* translateX = visual vertical while parent is rotated -90° */}
+          <div className={insertMoverClass}>
+            <div className={insertSpinClass}>
+              <div className="relative block h-auto w-full">
+                <Image
+                  src={layer.src}
+                  alt=""
+                  aria-hidden
+                  width={layer.width}
+                  height={layer.height}
+                  priority={priority}
+                  className="h-auto w-full"
+                />
+                <div
+                  className={composeClassName}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {composeFields}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         className={`absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
           isInserting
             ? `letter-insert-scene letter-insert-scene--${insertStep}`
-            : "letter-flip-scene"
+            : usesLiftSettle
+              ? "letter-lift-settle-scene"
+              : hasBack
+                ? "letter-flip-scene"
+                : ""
         }`}
         style={{
           "--letter-top": `${topPercent}%`,
@@ -447,73 +964,90 @@ function LetterFlipLayer({
         <div
           className={`block h-auto w-full ${
             isInserting
-              ? `letter-insert-card letter-insert-card--${insertStep}`
-              : "letter-flip-card"
+              ? `letter-insert-card letter-insert-card--${insertStep}${
+                  composeOnFront ? " letter-insert-card--front" : ""
+                }`
+              : usesLiftSettle
+                ? "letter-lift-settle-card"
+                : hasBack
+                  ? "letter-flip-card"
+                  : "relative"
           }`}
         >
-          <Image
-            src={layer.src}
-            alt=""
-            aria-hidden
-            width={layer.width}
-            height={layer.height}
-            priority={priority}
-            className="letter-flip-face h-auto w-full"
-          />
-          <div className="letter-flip-face letter-flip-face--back block h-auto w-full">
+          <div
+            className={`relative block h-auto w-full ${
+              hasBack && !usesLiftSettle ? "letter-flip-face" : ""
+            }`}
+          >
             <Image
-              src={backSrc}
+              src={layer.src}
               alt=""
               aria-hidden
-              width={backWidth}
-              height={backHeight}
+              width={layer.width}
+              height={layer.height}
               priority={priority}
               className="h-auto w-full"
             />
-            <div
-              className={`letter-compose absolute inset-[8%_8%_9%] flex flex-col justify-end pt-[10%] pb-[2%] px-[0%] ${
-                !showComposeMessage
-                  ? "pointer-events-none opacity-0"
-                  : canWrite
-                    ? "letter-compose--ready"
-                    : "letter-compose--visible pointer-events-none"
-              }`}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="letter-compose-columns flex h-[80%] w-full gap-1">
-                <label className="sr-only" htmlFor="card-message-left">
-                  Write your card message, left column
-                </label>
-                <textarea
-                  ref={leftRef}
-                  id="card-message-left"
-                  value={leftValue}
-                  maxLength={MAX_COLUMN_LENGTH}
-                  readOnly={!canWrite}
-                  onChange={(event) => handleLeftChange(event.target.value)}
-                  onKeyDown={handleLeftKeyDown}
-                  placeholder="Write your letter here..."
-                  className={textareaClassName}
-                />
-                <label className="sr-only" htmlFor="card-message-right">
-                  Write your card message, right column
-                </label>
-                <textarea
-                  ref={rightRef}
-                  id="card-message-right"
-                  value={rightValue}
-                  maxLength={MAX_COLUMN_LENGTH}
-                  readOnly={!canWrite}
-                  onChange={(event) => handleRightChange(event.target.value)}
-                  onKeyDown={handleRightKeyDown}
-                  placeholder={leftValue.length >= MAX_COLUMN_LENGTH ? "Continue here..." : ""}
-                  className={textareaClassName}
-                />
+            {composeOnFront ? (
+              <div
+                className={composeClassName}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {composeFields}
+              </div>
+            ) : null}
+          </div>
+          {hasBack && !usesLiftSettle && backSrc && backWidth && backHeight ? (
+            <div className="letter-flip-face letter-flip-face--back block h-auto w-full">
+              <Image
+                src={backSrc}
+                alt=""
+                aria-hidden
+                width={backWidth}
+                height={backHeight}
+                priority={priority}
+                className="h-auto w-full"
+              />
+              <div
+                className={composeClassName}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {composeFields}
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
+    );
+  }
+
+  if (!hasBack || !backSrc || !backWidth || !backHeight) {
+    return (
+      <Button
+        variant="unstyled"
+        aria-label={`Close ${envelope.title} letter`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onLetterClick?.();
+        }}
+        className="absolute left-1/2 top-[var(--letter-top)] cursor-pointer border-0 bg-transparent p-0"
+        style={{
+          "--letter-top": `${topPercent}%`,
+          zIndex: layer.zIndex,
+          width: `${letterWidthPercent(layer)}%`,
+          transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+        } as CSSProperties}
+      >
+        <Image
+          src={layer.src}
+          alt=""
+          aria-hidden
+          width={layer.width}
+          height={layer.height}
+          priority={priority}
+          className="h-auto w-full"
+        />
+      </Button>
     );
   }
 
@@ -615,58 +1149,135 @@ function EnvelopeVisual({
   envelope,
   priority = false,
   onLetterClick,
+  onCarouselSelect,
   isZoomedEnvelope = false,
+  isCarouselActive = false,
   isClosing = false,
   isTopFlapCompositionReady = false,
   composeStage = null,
   messageLeft = "",
   messageRight = "",
   recipientEmail = "",
-  refNumber = "",
-  sentOn = "",
-  expectedDelivery = "",
+  senderName = "",
   onMessageLeftChange,
   onMessageRightChange,
   onSendClick,
   onRecipientEmailChange,
+  onSenderNameChange,
   onAddressSubmit,
   onPreviousClick,
 }: {
   envelope: Envelope;
   priority?: boolean;
   onLetterClick?: () => void;
+  onCarouselSelect?: () => void;
   isZoomedEnvelope?: boolean;
+  /** Home carousel: only the centered card is open with the letter visible */
+  isCarouselActive?: boolean;
   isClosing?: boolean;
   isTopFlapCompositionReady?: boolean;
   composeStage?: ComposeStage | null;
   messageLeft?: string;
   messageRight?: string;
   recipientEmail?: string;
-  refNumber?: string;
-  sentOn?: string;
-  expectedDelivery?: string;
+  senderName?: string;
   onMessageLeftChange?: (message: string) => void;
   onMessageRightChange?: (message: string) => void;
   onSendClick?: () => void;
   onRecipientEmailChange?: (email: string) => void;
+  onSenderNameChange?: (name: string) => void;
   onAddressSubmit?: (event: FormEvent<HTMLFormElement>) => void;
   onPreviousClick?: () => void;
 }) {
+  const { t } = useLocale();
   const frameStyle = {
     aspectRatio: `${envelope.width} / ${envelope.height}`,
   } as CSSProperties;
+  const [showStamp, setShowStamp] = useState(false);
+  const stampRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const bothFilled =
+      recipientEmail.trim().length > 0 && senderName.trim().length > 0;
+
+    if (stampRevealTimerRef.current) {
+      clearTimeout(stampRevealTimerRef.current);
+      stampRevealTimerRef.current = null;
+    }
+
+    if (!bothFilled) {
+      setShowStamp(false);
+      return;
+    }
+
+    // Reveal after Sender typing goes idle (can't know "done" exactly)
+    stampRevealTimerRef.current = setTimeout(() => {
+      setShowStamp(true);
+      stampRevealTimerRef.current = null;
+    }, STAMP_REVEAL_IDLE_MS);
+
+    return () => {
+      if (stampRevealTimerRef.current) {
+        clearTimeout(stampRevealTimerRef.current);
+        stampRevealTimerRef.current = null;
+      }
+    };
+  }, [recipientEmail, senderName]);
+
+  const supportsCarouselFlapOpen = hasCarouselFlapReveal(envelope);
+  const [carouselFlapStep, setCarouselFlapStep] =
+    useState<TopFlapStep>("closed");
+
+  useEffect(() => {
+    if (isZoomedEnvelope || !supportsCarouselFlapOpen) {
+      return;
+    }
+
+    if (!isCarouselActive) {
+      setCarouselFlapStep("closed");
+      return;
+    }
+
+    setCarouselFlapStep("closed");
+    const openTimer = setTimeout(() => {
+      setCarouselFlapStep("opening");
+    }, CAROUSEL_FLAP_PAUSE_MS);
+    const openedTimer = setTimeout(() => {
+      setCarouselFlapStep("open");
+    }, CAROUSEL_FLAP_PAUSE_MS + CAROUSEL_FLAP_OPEN_MS);
+
+    return () => {
+      clearTimeout(openTimer);
+      clearTimeout(openedTimer);
+    };
+  }, [isCarouselActive, isZoomedEnvelope, supportsCarouselFlapOpen]);
+
+  const isSealedCarousel = !isZoomedEnvelope && !isCarouselActive;
   const topFlapStep =
     isZoomedEnvelope && envelope.topFlap
       ? (getTopFlapStep(composeStage) ?? "open")
-      : null;
+      : supportsCarouselFlapOpen && !isZoomedEnvelope
+        ? carouselFlapStep
+        : isSealedCarousel && envelope.topFlap
+          ? "closed"
+          : null;
+  const showCarouselLetter =
+    !isSealedCarousel &&
+    (!supportsCarouselFlapOpen ||
+      carouselFlapStep === "opening" ||
+      carouselFlapStep === "open");
   const shouldRenderComposedFlapBase = Boolean(
-    isZoomedEnvelope &&
-      envelope.topFlap?.bottomInsideSrc &&
+    envelope.topFlap?.bottomInsideSrc &&
       envelope.topFlap.bottomInsideWidth &&
-      envelope.topFlap.bottomInsideHeight,
+      envelope.topFlap.bottomInsideHeight &&
+      (isZoomedEnvelope ||
+        isSealedCarousel ||
+        (supportsCarouselFlapOpen &&
+          (carouselFlapStep === "closed" ||
+            carouselFlapStep === "opening"))),
   );
   const isComposedFlapVisible = Boolean(
-    topFlapStep && isTopFlapCompositionReady,
+    topFlapStep && (isTopFlapCompositionReady || isSealedCarousel),
   );
   const hasBackFace = Boolean(
     envelope.topFlap?.backSrc &&
@@ -715,66 +1326,51 @@ function EnvelopeVisual({
           aria-hidden
           width={160}
           height={160}
-          className="pointer-events-none absolute right-[3%] top-[3%] z-50 w-[30%] max-w-[8.5rem]"
+          className={`pointer-events-none absolute right-[3%] top-[3%] z-50 w-[30%] max-w-[8.5rem] transition-opacity duration-300 ${
+            showStamp ? "opacity-100" : "opacity-0"
+          }`}
         />
-        <div className="absolute bottom-0 left-0 flex h-[60%] w-full flex-col justify-end mb-6">
-          <div className="mx-[4%] py-[2%] rounded-md bg-white shadow-[0_12px_30px_rgba(0,0,0,0.1)]">
-            <div className="relative flex flex-col px-[3.5%] py-[1%]">
-              <span
-                aria-hidden
-                className="absolute left-[2%] right-[2%] top-0 border-t-[0.5px] border-[#ec0000]"
-              />
-              <p className="text-label text-[#ec0000]">Recipient</p>
-              <label htmlFor="recipient-email" className="sr-only">
-                Recipient email
-              </label>
-              <input
-                id="recipient-email"
-                type="email"
-                required
-                value={recipientEmail}
-                disabled={composeStage === "sending"}
-                onChange={(event) =>
-                  onRecipientEmailChange?.(event.target.value)
+        <div className="absolute left-[4%] top-[8%] w-[52%] rounded-md bg-white px-[3.5%] py-[2.5%] shadow-[0_12px_30px_rgba(0,0,0,0.1)]">
+          <div className="flex flex-col">
+            <p className="text-label text-[#ec0000]">{t.recipient}</p>
+            <label htmlFor="recipient-email" className="sr-only">
+              {t.recipientEmail}
+            </label>
+            <input
+              id="recipient-email"
+              type="email"
+              required
+              value={recipientEmail}
+              disabled={composeStage === "sending"}
+              onChange={(event) =>
+                onRecipientEmailChange?.(event.target.value)
+              }
+              placeholder="friend@example.com"
+              className="text-letter mt-1 w-full border-0 bg-transparent text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60"
+            />
+          </div>
+        </div>
+        <div className="absolute bottom-[8%] right-[4%] w-[52%] rounded-md bg-white px-[3.5%] py-[2%] shadow-[0_12px_30px_rgba(0,0,0,0.1)]">
+          <div className="flex flex-col">
+            <p className="text-label text-[#ec0000]">{t.sender}</p>
+            <label htmlFor="sender-name" className="sr-only">
+              {t.sender}
+            </label>
+            <input
+              id="sender-name"
+              type="text"
+              required
+              value={senderName}
+              disabled={composeStage === "sending"}
+              onChange={(event) => onSenderNameChange?.(event.target.value)}
+              onBlur={() => {
+                if (recipientEmail.trim() && senderName.trim()) {
+                  setShowStamp(true);
                 }
-                placeholder="friend@example.com"
-                className="text-letter mt-1 w-full border-0 bg-transparent text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60"
-              />
-            </div>
-            <div className="relative flex flex-col px-[3.5%] py-[1%]">
-              <span
-                aria-hidden
-                className="absolute left-[2%] right-[2%] top-0 border-t-[0.5px] border-[#ec0000]"
-              />
-              <p className="text-label text-[#ec0000]">Ref Number</p>
-              <p className="text-letter mt-1 truncate text-neutral-700">
-                {refNumber}
-              </p>
-            </div>
-            <div className="relative grid grid-cols-2 px-[3.5%] py-[1%]">
-              <span
-                aria-hidden
-                className="absolute left-[2%] right-[2%] top-0 border-t-[0.5px] border-[#ec0000]"
-              />
-              <span
-                aria-hidden
-                className="absolute bottom-0 left-[2%] right-[2%] border-b-[0.5px] border-[#ec0000]"
-              />
-              <div className="flex flex-col py-[1%] pr-[3.5%]">
-                <p className="text-label text-[#ec0000]">Sent On</p>
-                <p className="text-letter mt-1 text-neutral-700">{sentOn}</p>
-              </div>
-              <div className="relative flex flex-col py-[1%] pl-[3.5%]">
-                <span
-                  aria-hidden
-                  className="absolute bottom-0 left-0 top-0 border-l-[0.5px] border-[#ec0000]"
-                />
-                <p className="text-label text-[#ec0000]">Expected Delivery</p>
-                <p className="text-letter mt-1 text-neutral-700">
-                  {expectedDelivery}
-                </p>
-              </div>
-            </div>
+              }}
+              placeholder={t.yourName}
+              className="text-letter mt-1 w-full border-0 bg-transparent text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60"
+            />
           </div>
         </div>
       </div>
@@ -801,17 +1397,44 @@ function EnvelopeVisual({
           }`}
         >
           <div className="envelope-front-face">
+            {isSealedCarousel && onCarouselSelect ? (
+              <Button
+                variant="unstyled"
+                aria-label={`Select ${envelope.title}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCarouselSelect();
+                }}
+                className="absolute inset-0 z-30 cursor-pointer border-0 bg-transparent p-0"
+              />
+            ) : null}
+            {hasCarouselFlapReveal(envelope) && envelope.topFlap?.backSrc ? (
+              <Image
+                src={envelope.topFlap.backSrc}
+                alt=""
+                aria-hidden
+                width={envelope.topFlap.backWidth!}
+                height={envelope.topFlap.backHeight!}
+                priority={priority}
+                style={{ zIndex: 0 }}
+                className="pointer-events-none absolute bottom-2 left-0 z-0 h-auto w-full"
+              />
+            ) : null}
             {envelope.layers.map((layer) => {
               if (layer.anchor === "center") {
-                const topPercent = layer.topPercent ?? 50;
-                const shouldFlip =
-                  isZoomedEnvelope &&
-                  layer.backSrc &&
-                  layer.backWidth &&
-                  layer.backHeight &&
-                  (!envelope.sendable || composeStage !== null);
+                if (!showCarouselLetter && !isZoomedEnvelope) {
+                  return null;
+                }
 
-                if (shouldFlip) {
+                const topPercent = layer.topPercent ?? 50;
+                const hasBack = letterHasBack(layer);
+                const shouldUseLetterLayer =
+                  isZoomedEnvelope &&
+                  (hasBack
+                    ? !envelope.sendable || composeStage !== null
+                    : Boolean(envelope.sendable && composeStage !== null));
+
+                if (shouldUseLetterLayer) {
                   return (
                     <LetterFlipLayer
                       key={layer.src}
@@ -838,29 +1461,31 @@ function EnvelopeVisual({
                       event.stopPropagation();
                       onLetterClick?.();
                     }}
-                    className="group absolute left-1/2 top-[var(--letter-top)] cursor-pointer border-0 bg-transparent p-0"
+                    className="carousel-letter-open group absolute left-1/2 top-[var(--letter-top)] cursor-pointer border-0 bg-transparent p-0"
                     style={{
                       "--letter-top": `${topPercent}%`,
                       zIndex: layer.zIndex,
                       width: `${letterWidthPercent(layer)}%`,
-                      transform: "translate(-50%, -50%)",
+                      transform: "translate(-50%, -50%) translateZ(0)",
                     } as CSSProperties}
                   >
-                    <span
-                      className="relative top-0 block h-auto w-full transition-[top] duration-500 ease-out group-hover:top-[calc(-5cqh)]"
-                      style={{
-                        transform: `rotate(${layer.rotate ?? 0}deg)`,
-                      }}
-                    >
-                      <Image
-                        src={layer.src}
-                        alt=""
-                        aria-hidden
-                        width={layer.width}
-                        height={layer.height}
-                        priority={priority}
-                        className="h-auto w-full"
-                      />
+                    <span className="carousel-letter-rise relative block h-auto w-full">
+                      <span
+                        className="relative top-0 block h-auto w-full transition-[top] duration-500 ease-out group-hover:top-[calc(-5cqh)]"
+                        style={{
+                          transform: `rotate(${layer.rotate ?? 0}deg)`,
+                        }}
+                      >
+                        <Image
+                          src={layer.src}
+                          alt=""
+                          aria-hidden
+                          width={layer.width}
+                          height={layer.height}
+                          priority={priority}
+                          className="h-auto w-full"
+                        />
+                      </span>
                     </span>
                   </Button>
                 );
@@ -869,9 +1494,40 @@ function EnvelopeVisual({
               if (
                 layer.anchor === "fill" &&
                 envelope.topFlap &&
-                (topFlapStep === "closing" || topFlapStep === "closed")
+                (topFlapStep === "closing" ||
+                  topFlapStep === "closed" ||
+                  topFlapStep === "opening")
               ) {
                 return null;
+              }
+
+              const softBottomOpacity =
+                layer.anchor === "bottom" &&
+                (layer.src.includes("flat_7") || layer.src.includes("flat_8"));
+
+              if (layer.anchor === "bottom") {
+                return (
+                  <div
+                    key={layer.src}
+                    className="pointer-events-none absolute bottom-0 left-0 w-full"
+                    style={{
+                      zIndex: layer.zIndex,
+                      transform: "translateZ(1px)",
+                    }}
+                  >
+                    <Image
+                      src={layer.src}
+                      alt=""
+                      aria-hidden
+                      width={layer.width}
+                      height={layer.height}
+                      priority={priority}
+                      className={`h-auto w-full${
+                        softBottomOpacity ? " opacity-93" : ""
+                      }`}
+                    />
+                  </div>
+                );
               }
 
               return (
@@ -884,13 +1540,7 @@ function EnvelopeVisual({
                   height={layer.height}
                   priority={priority}
                   style={{ zIndex: layer.zIndex }}
-                  className={
-                    layer.anchor === "fill"
-                      ? "pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
-                      : layer.anchor === "bottom"
-                        ? "pointer-events-none absolute bottom-0 left-0 h-auto w-full opacity-93"
-                        : "pointer-events-none absolute bottom-0 left-0 h-auto w-full"
-                  }
+                  className="pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
                 />
               );
             })}
@@ -913,7 +1563,11 @@ function EnvelopeVisual({
                 flap={envelope.topFlap}
                 priority={priority}
                 step={topFlapStep}
-                isReady={isComposedFlapVisible}
+                isReady={
+                  supportsCarouselFlapOpen || isSealedCarousel
+                    ? true
+                    : isComposedFlapVisible
+                }
               />
             )}
           </div>
@@ -926,7 +1580,8 @@ function EnvelopeVisual({
                 width={envelope.topFlap!.backWidth!}
                 height={envelope.topFlap!.backHeight!}
                 priority={priority}
-                className="pointer-events-none absolute bottom-2 left-0 h-auto w-full"
+                style={{ zIndex: 0 }}
+                className="pointer-events-none absolute bottom-2 left-0 z-0 h-auto w-full"
               />
               {showBackPeekLetter && letterLayer ? (
                 <div
@@ -974,6 +1629,7 @@ function EnvelopeVisual({
 }
 
 export function PostcardStack() {
+  const { t, envelopeCopy } = useLocale();
   const [activeIndex, setActiveIndex] = useState(
     ENVELOPES.length * CAROUSEL_CENTER_COPY + INITIAL_CENTER_INDEX,
   );
@@ -984,9 +1640,9 @@ export function PostcardStack() {
   const [messageLeft, setMessageLeft] = useState("");
   const [messageRight, setMessageRight] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [serviceClass, setServiceClass] = useState<ServiceClass>("first");
   const [refNumber, setRefNumber] = useState("");
-  const [sentOn, setSentOn] = useState("");
-  const [expectedDelivery, setExpectedDelivery] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [successPhase, setSuccessPhase] = useState<SuccessPhase | null>(null);
   const [isTopFlapCompositionReady, setIsTopFlapCompositionReady] =
@@ -1000,6 +1656,7 @@ export function PostcardStack() {
   const activeOffset = activeEnvelopeOffset(activeIndex, null);
   const activeEnvelopeIndex = wrapEnvelopeIndex(activeIndex);
   const activeEnvelope = ENVELOPES[activeEnvelopeIndex];
+  const activeCopy = envelopeCopy(activeEnvelope);
   const zoomedEnvelope =
     zoomedIndex === null ? null : ENVELOPES[wrapEnvelopeIndex(zoomedIndex)];
 
@@ -1029,9 +1686,9 @@ export function PostcardStack() {
     setMessageLeft("");
     setMessageRight("");
     setRecipientEmail("");
+    setSenderName("");
+    setServiceClass("first");
     setRefNumber("");
-    setSentOn("");
-    setExpectedDelivery("");
     setSendError(null);
     setSuccessPhase(null);
     setIsTopFlapCompositionReady(false);
@@ -1090,9 +1747,11 @@ export function PostcardStack() {
       setIsTopFlapCompositionReady(false);
 
       if (envelope.topFlap) {
+        const letterLayer = envelopeLetterLayer(envelope);
+        const revealDelay = letterLayer ? letterOpenRevealMs(letterLayer) : 0;
         scheduleAction(() => {
           setIsTopFlapCompositionReady(true);
-        }, LETTER_FLIP_REVEAL_MS);
+        }, revealDelay);
       }
     },
     [composeStage, scheduleAction],
@@ -1111,6 +1770,8 @@ export function PostcardStack() {
       setMessageLeft("");
       setMessageRight("");
       setRecipientEmail("");
+      setSenderName("");
+      setServiceClass("first");
       setSendError(null);
       setIsTopFlapCompositionReady(false);
 
@@ -1161,12 +1822,7 @@ export function PostcardStack() {
   }, [zoomPhase, zoomedIndex, composeStage, startWriting]);
 
   const enterAddressing = useCallback(() => {
-    const now = new Date();
     setRefNumber(generateRefNumber());
-    setSentOn(formatDisplayDate(now));
-    setExpectedDelivery(
-      formatDisplayDate(new Date(now.getTime() + 24 * 60 * 60 * 1000)),
-    );
     setComposeStage("addressing");
   }, []);
 
@@ -1177,41 +1833,60 @@ export function PostcardStack() {
 
     clearActionTimers();
     setSendError(null);
+
+    const letterLayer = zoomedEnvelope
+      ? envelopeLetterLayer(zoomedEnvelope)
+      : undefined;
+    const skipLetterFlip = Boolean(
+      letterLayer &&
+        letterComposesOnFront(letterLayer) &&
+        !letterNeedsInsertReorient(letterLayer),
+    );
+    const insertFlipDelay = skipLetterFlip ? 0 : LETTER_INSERT_FLIP_MS;
+    const insertTotalMs =
+      LETTER_INSERT_LIFT_MS + insertFlipDelay + LETTER_INSERT_DROP_MS;
+
     setComposeStage("closing-lift");
 
-    scheduleAction(() => {
-      setComposeStage("closing-flip");
-    }, LETTER_INSERT_LIFT_MS);
+    if (skipLetterFlip) {
+      scheduleAction(() => {
+        setComposeStage("closing-insert");
+      }, LETTER_INSERT_LIFT_MS);
+    } else {
+      scheduleAction(() => {
+        setComposeStage("closing-flip");
+      }, LETTER_INSERT_LIFT_MS);
 
-    scheduleAction(() => {
-      setComposeStage("closing-insert");
-    }, LETTER_INSERT_LIFT_MS + LETTER_INSERT_FLIP_MS);
+      scheduleAction(() => {
+        setComposeStage("closing-insert");
+      }, LETTER_INSERT_LIFT_MS + LETTER_INSERT_FLIP_MS);
+    }
 
     if (zoomedEnvelope?.topFlap) {
       scheduleAction(() => {
         setComposeStage("closing-flap");
-      }, LETTER_INSERT_TOTAL_MS);
+      }, insertTotalMs);
 
       if (zoomedEnvelope.topFlap.backSrc) {
         scheduleAction(() => {
           setComposeStage("flipping-back");
-        }, LETTER_INSERT_TOTAL_MS + FLAP_CLOSE_MS + ENVELOPE_CENTER_PAUSE_MS);
+        }, insertTotalMs + FLAP_CLOSE_MS + ENVELOPE_CENTER_PAUSE_MS);
 
         scheduleAction(() => {
           enterAddressing();
-        }, LETTER_INSERT_TOTAL_MS + FLAP_CLOSE_MS + ENVELOPE_CENTER_PAUSE_MS + ENVELOPE_BACK_FLIP_MS);
+        }, insertTotalMs + FLAP_CLOSE_MS + ENVELOPE_CENTER_PAUSE_MS + ENVELOPE_BACK_FLIP_MS);
         return;
       }
 
       scheduleAction(() => {
         enterAddressing();
-      }, LETTER_INSERT_TOTAL_MS + FLAP_CLOSE_MS);
+      }, insertTotalMs + FLAP_CLOSE_MS);
       return;
     }
 
     scheduleAction(() => {
       enterAddressing();
-    }, LETTER_INSERT_TOTAL_MS);
+    }, insertTotalMs);
   }, [
     clearActionTimers,
     enterAddressing,
@@ -1260,6 +1935,7 @@ export function PostcardStack() {
       if (
         !zoomedEnvelope?.sendable ||
         !recipientEmail.trim() ||
+        !senderName.trim() ||
         !hasCardMessage(messageLeft, messageRight)
       ) {
         return;
@@ -1317,6 +1993,7 @@ export function PostcardStack() {
       recipientEmail,
       refNumber,
       scheduleAction,
+      senderName,
       zoomedEnvelope,
     ],
   );
@@ -1489,6 +2166,8 @@ export function PostcardStack() {
                 composeStage === "sending" ||
                 composeStage === "success");
             const addressingScale = addressingEnvelopeScale(envelope);
+            const zoomScale = envelopeZoomScale(envelope);
+            const zoomTranslateY = envelopeZoomTranslateY(envelope);
             const isZoomGrown =
               isZoomTarget &&
               (zoomPhase === "growing" || zoomPhase === "done");
@@ -1497,11 +2176,11 @@ export function PostcardStack() {
               ? undefined
               : isZoomTarget
                 ? shouldAddressingZoom
-                  ? `translateY(-28vh) scale(${addressingScale})`
+                  ? `translateY(${ADDRESSING_TRANSLATE_Y}) scale(${addressingScale})`
                   : composeStage === "closing-flap"
-                    ? `translateY(-20vh) scale(${ZOOM_SCALE})`
+                    ? `translateY(${CLOSING_FLAP_TRANSLATE_Y}) scale(${zoomScale})`
                     : isZoomGrown
-                      ? `scale(${ZOOM_SCALE})`
+                      ? `translateY(${zoomTranslateY}) scale(${zoomScale})`
                       : undefined
                 : undefined;
             const successMotionMs =
@@ -1547,7 +2226,13 @@ export function PostcardStack() {
                   envelope={envelope}
                   priority={isActive}
                   onLetterClick={() => handleLetterClick(index)}
+                  onCarouselSelect={
+                    isActive || isZooming
+                      ? undefined
+                      : () => setActiveIndex(index)
+                  }
                   isZoomedEnvelope={zoomPhase === "done" && zoomedIndex === index}
+                  isCarouselActive={isActive}
                   isClosing={
                     isSendableZoomTarget &&
                     (composeStage === "closing-lift" ||
@@ -1562,11 +2247,7 @@ export function PostcardStack() {
                   messageLeft={isSendableZoomTarget ? messageLeft : ""}
                   messageRight={isSendableZoomTarget ? messageRight : ""}
                   recipientEmail={isSendableZoomTarget ? recipientEmail : ""}
-                  refNumber={isSendableZoomTarget ? refNumber : ""}
-                  sentOn={isSendableZoomTarget ? sentOn : ""}
-                  expectedDelivery={
-                    isSendableZoomTarget ? expectedDelivery : ""
-                  }
+                  senderName={isSendableZoomTarget ? senderName : ""}
                   onMessageLeftChange={
                     isSendableZoomTarget ? setMessageLeft : undefined
                   }
@@ -1578,6 +2259,9 @@ export function PostcardStack() {
                   }
                   onRecipientEmailChange={
                     isSendableZoomTarget ? setRecipientEmail : undefined
+                  }
+                  onSenderNameChange={
+                    isSendableZoomTarget ? setSenderName : undefined
                   }
                   onAddressSubmit={
                     isSendableZoomTarget ? handleSendCard : undefined
@@ -1593,7 +2277,7 @@ export function PostcardStack() {
           <div className="post-landing pointer-events-none absolute inset-0 z-30 flex items-end justify-center overflow-hidden md:items-center">
             <div className="post-stage relative">
               <Image
-                src="/images/post_top_mobile.png"
+                src="/images/post_top_mobile.webp"
                 alt=""
                 aria-hidden
                 width={1080}
@@ -1603,7 +2287,7 @@ export function PostcardStack() {
                 className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain md:hidden"
               />
               <Image
-                src="/images/post_top_send.png"
+                src="/images/post_top_send.webp"
                 alt=""
                 aria-hidden
                 width={1920}
@@ -1626,15 +2310,15 @@ export function PostcardStack() {
         aria-hidden={isZooming}
       >
         <div key={activeIndex} className="flex flex-col items-center">
-          <h2>{activeEnvelope.title}</h2>
-          <p className="text-lead">{activeEnvelope.subtitle}</p>
-          <p className="mt-2 h-[4.875rem] max-w-xl line-clamp-4 whitespace-pre-line">
-            {activeEnvelope.description}
+          <h2>{activeCopy.title}</h2>
+          <p className="text-lead">{activeCopy.subtitle}</p>
+          <p className="mt-2 h-[2em] max-w-xl line-clamp-4 whitespace-pre-line">
+            {activeCopy.description}
           </p>
           <div className="mt-5 flex items-center justify-center gap-3">
-            <Button variant="outline">View details</Button>
+            <Button variant="outline">{t.viewDetails}</Button>
             <Button variant="primary" onClick={() => openZoom(activeIndex)}>
-              Send card
+              {t.sendCard}
               <span aria-hidden className="text-sm leading-none">
                 ↗
               </span>
@@ -1673,9 +2357,43 @@ export function PostcardStack() {
       >
         {zoomedEnvelope ? (
           <>
-            <h3 className="truncate">{zoomedEnvelope.title}</h3>
+            <fieldset className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2 border-0 p-0">
+              <legend className="text-eyebrow sr-only">{t.serviceType}</legend>
+              <span aria-hidden className="text-eyebrow shrink-0">
+                {t.serviceType}
+              </span>
+              {SERVICE_CLASS_OPTIONS.map((option) => {
+                const selected = serviceClass === option;
+                const label =
+                  option === "first" ? t.serviceFirst : t.serviceSecond;
+
+                return (
+                  <label
+                    key={option}
+                    className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
+                  >
+                    <input
+                      type="radio"
+                      name="service-class"
+                      value={option}
+                      checked={selected}
+                      onChange={() => setServiceClass(option)}
+                      className="sr-only"
+                    />
+                    <span
+                      aria-hidden
+                      className="flex h-4 w-4 shrink-0 items-center justify-center border border-neutral-900 bg-white"
+                    >
+                      {selected ? (
+                        <span className="block h-2 w-2 bg-neutral-900" />
+                      ) : null}
+                    </span>
+                    {label}
+                  </label>
+                );
+              })}
+            </fieldset>
             <div className="flex shrink-0 items-center gap-3">
-              <Button variant="outline">View details</Button>
               <Button
                 variant="primary"
                 onClick={handleBottomSendCard}
@@ -1691,12 +2409,12 @@ export function PostcardStack() {
                   />
                 )}
                 {composeStage === "success"
-                  ? "Pick another"
+                  ? t.pickAnother
                   : composeStage === "sending"
-                    ? "Sending..."
+                    ? t.sending
                     : composeStage === "addressing"
-                      ? "Send"
-                      : "Send card"}
+                      ? t.send
+                      : t.sendCard}
                 {composeStage !== "sending" && composeStage !== "success" && (
                   <span aria-hidden className="text-sm leading-none">
                     ↗

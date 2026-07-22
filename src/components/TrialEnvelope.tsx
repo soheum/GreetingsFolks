@@ -271,7 +271,18 @@ function TrialLetter({
             className="h-auto w-full"
           />
           <div
-            className={`letter-compose absolute inset-[8%_8%_9%] flex flex-col justify-end px-[0%] pb-[2%] pt-[10%] ${
+            className={`letter-compose absolute ${
+              layer.composeShape === "oval-bottom"
+                ? "letter-compose--oval-bottom"
+                : layer.composeShape === "taper-bottom"
+                  ? "letter-compose--taper-bottom"
+                  : "inset-[8%_8%_9%]"
+            } flex flex-col px-[0%] ${
+              layer.composeShape === "oval-bottom" ||
+              layer.composeShape === "taper-bottom"
+                ? "justify-start pb-[0%] pt-[0%]"
+                : "justify-end pb-[2%] pt-[10%]"
+            } ${
               !showCompose
                 ? "pointer-events-none opacity-0"
                 : canWrite
@@ -280,7 +291,14 @@ function TrialLetter({
             }`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="letter-compose-columns flex h-[80%] w-full gap-1">
+            <div
+              className={`letter-compose-columns flex w-full gap-1 ${
+                layer.composeShape === "oval-bottom" ||
+                layer.composeShape === "taper-bottom"
+                  ? "h-full"
+                  : "h-[80%]"
+              }`}
+            >
               <label className="sr-only" htmlFor="trial-message-left">
                 Write your card message, left column
               </label>

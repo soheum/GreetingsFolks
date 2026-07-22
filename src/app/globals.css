@@ -111,13 +111,18 @@
 
   --text-eyebrow: 0.75rem;
   --text-eyebrow--line-height: 1.5;
-  --text-eyebrow--letter-spacing: 0.24em;
-  --text-eyebrow--font-weight: 600;
+  --text-eyebrow--letter-spacing: 0.12em;
+  --text-eyebrow--font-weight: 500;
 
   --text-caption: 0.875rem;
   --text-caption--line-height: 1.5;
   --text-caption--letter-spacing: 0.16em;
-  --text-caption--font-weight: 600;
+  --text-caption--font-weight: 400;
+
+  --text-footer: 0.75rem;
+  --text-footer--line-height: 1.6;
+  --text-footer--letter-spacing: 0.01em;
+  --text-footer--font-weight: 400;
 
   --text-label: 0.375rem;
   --text-label--line-height: 1.4;
@@ -220,6 +225,14 @@
   color: var(--color-brand);
 }
 
+@utility text-footer {
+  font-size: var(--text-footer);
+  line-height: var(--text-footer--line-height);
+  letter-spacing: var(--text-footer--letter-spacing);
+  font-weight: var(--text-footer--font-weight);
+  color: #df0000;
+}
+
 @utility text-label {
   font-family: var(--font-meta);
   font-size: var(--text-label);
@@ -277,6 +290,35 @@ body.envelope-zoom-active main {
 body.envelope-zoom-active header,
 body.envelope-zoom-active footer {
   display: none;
+}
+
+/* Home carousel: letter appears when envelope becomes centered */
+.carousel-letter-open {
+  animation: carousel-letter-open 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.carousel-letter-open > .carousel-letter-rise {
+  animation: carousel-letter-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes carousel-letter-open {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes carousel-letter-rise {
+  from {
+    top: 6%;
+  }
+
+  to {
+    top: 0;
+  }
 }
 
 /* Send success: tilt → postbox → post up */
@@ -490,6 +532,175 @@ body.envelope-zoom-active footer {
     forwards;
 }
 
+/* Front-only open: lift up, then settle down with z-index on top */
+.letter-lift-settle-scene {
+  --letter-lift-settle-duration: 2400ms;
+  --letter-lift-settle-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  animation: letter-z-index-rise-settle var(--letter-lift-settle-duration)
+    var(--letter-lift-settle-easing) forwards;
+}
+
+.letter-lift-settle-card {
+  position: relative;
+  animation: letter-lift-then-settle var(--letter-lift-settle-duration)
+    var(--letter-lift-settle-easing) forwards;
+}
+
+.letter-lift-settle-card--done {
+  animation: none;
+  transform: translateY(-28%) scale(1);
+}
+
+.letter-lift-settle-scene .letter-compose--ready {
+  animation-delay: 1950ms;
+}
+
+/* Sideways letter (flat_3): parent is -90°, so translateX = visual up/down.
+   Mover handles lift; spin handles the 90° upright rotate. */
+.letter-lift-rotate-settle-scene {
+  --letter-lift-rotate-settle-duration: 2800ms;
+  --letter-lift-rotate-settle-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  animation: letter-z-index-rise-rotate-settle
+    var(--letter-lift-rotate-settle-duration)
+    var(--letter-lift-rotate-settle-easing) forwards;
+}
+
+.letter-lift-rotate-settle-mover {
+  position: relative;
+  width: 100%;
+  animation: letter-lift-rotate-mover var(--letter-lift-rotate-settle-duration)
+    var(--letter-lift-rotate-settle-easing) forwards;
+}
+
+.letter-lift-rotate-settle-spin {
+  position: relative;
+  width: 100%;
+  transform-origin: center center;
+  animation: letter-lift-rotate-spin var(--letter-lift-rotate-settle-duration)
+    var(--letter-lift-rotate-settle-easing) forwards;
+}
+
+.letter-lift-rotate-settle-card--done .letter-lift-rotate-settle-mover,
+.letter-lift-rotate-settle-mover--done {
+  animation: none;
+  transform: translateX(55%);
+}
+
+.letter-lift-rotate-settle-card--done .letter-lift-rotate-settle-spin,
+.letter-lift-rotate-settle-spin--done {
+  animation: none;
+  transform: rotate(90deg);
+}
+
+.letter-lift-rotate-settle-scene .letter-compose--ready {
+  animation-delay: 2100ms;
+}
+
+/* Insert (close) for flat_3 — same axis remap */
+.letter-lift-rotate-settle-mover--lift {
+  animation: letter-insert-mover-lift 1200ms var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1))
+    forwards;
+}
+
+.letter-lift-rotate-settle-mover--flip {
+  transform: translateX(55%);
+  animation: none;
+}
+
+.letter-lift-rotate-settle-mover--insert {
+  animation: letter-insert-mover-drop 1200ms var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1))
+    forwards;
+}
+
+.letter-lift-rotate-settle-spin--lift {
+  transform: rotate(90deg);
+  animation: none;
+}
+
+.letter-lift-rotate-settle-spin--flip {
+  animation: letter-insert-spin-reorient 800ms var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1))
+    forwards;
+}
+
+.letter-lift-rotate-settle-spin--insert,
+.letter-lift-rotate-settle-spin--done {
+  transform: rotate(0deg);
+  animation: none;
+}
+
+.letter-lift-rotate-settle-mover--done {
+  transform: translateX(-5%);
+}
+
+/* Fold-open letter (flat_4 / flat_5):
+   1) closed cover lifts up
+   2) flat crossfade to inside (no 3D rotateX — avoids hinge pop toward camera) */
+.letter-fold-open-scene {
+  --letter-fold-open-duration: 5000ms;
+  --letter-fold-open-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  animation: letter-z-index-rise-fold var(--letter-fold-open-duration)
+    var(--letter-fold-open-easing) forwards;
+}
+
+.letter-fold-open-mover {
+  position: relative;
+  width: 100%;
+  animation: letter-fold-lift-then-drop var(--letter-fold-open-duration)
+    var(--letter-fold-open-easing) forwards;
+}
+
+.letter-fold-closed {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  animation: letter-fold-closed-exit var(--letter-fold-open-duration)
+    var(--letter-fold-open-easing) forwards;
+}
+
+.letter-fold-closed-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.letter-fold-opened {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  animation: letter-fold-opened-enter var(--letter-fold-open-duration)
+    var(--letter-fold-open-easing) forwards;
+}
+
+.letter-fold-opened-inner {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.letter-fold-open-scene .letter-compose--ready {
+  /* Sync with inside open (~40% of 6000ms fold-open) */
+  animation-delay: 2400ms;
+}
+
+.letter-fold-open-card--done .letter-fold-open-mover,
+.letter-fold-open-card--done .letter-fold-closed,
+.letter-fold-open-card--done .letter-fold-opened {
+  animation: none;
+}
+
+.letter-fold-open-card--done .letter-fold-open-mover {
+  transform: translateY(-40%);
+}
+
+.letter-fold-open-card--done .letter-fold-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.letter-fold-open-card--done .letter-fold-opened {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
 .letter-flip-card.letter-flip-card--receive {
   animation: letter-lift-then-flip-receive var(--letter-flip-duration)
     var(--letter-flip-easing) forwards;
@@ -519,6 +730,96 @@ body.envelope-zoom-active footer {
 .letter-compose {
   transform: translateY(0.75rem);
   opacity: 0;
+}
+
+/* Lantern-shaped letter backs (e.g. flat_6): write area follows the lantern.
+   Clip tapers at the bottom; side padding keeps glyphs from being sliced. */
+.letter-compose--oval-bottom {
+  inset: 10% 10% 26% 10%;
+  clip-path: polygon(
+    4% 0%,
+    96% 0%,
+    100% 16%,
+    100% 48%,
+    90% 72%,
+    72% 90%,
+    50% 100%,
+    28% 90%,
+    10% 72%,
+    0% 48%,
+    0% 16%
+  );
+  overflow: hidden;
+  padding: 3% 8% 10% 8%;
+  box-sizing: border-box;
+}
+
+.letter-compose--oval-bottom .letter-compose-columns {
+  width: 100%;
+  height: 100%;
+  align-self: stretch;
+}
+
+.letter-compose--oval-bottom .card-message-input {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+
+/* flat_5 open inside: floral oval write area (full ellipse — not flat_6 lantern).
+   Side inset + radius pull text off the flowers; padding keeps glyphs inside. */
+.letter-compose--taper-bottom {
+  inset: 8% 15% 10% 15%;
+  border-radius: 50% / 28%;
+  overflow: hidden;
+  padding: 7% 11% 9% 11%;
+  box-sizing: border-box;
+}
+
+.letter-compose--taper-bottom .letter-compose-columns {
+  width: 100%;
+  height: 100%;
+}
+
+.letter-compose--taper-bottom .card-message-input {
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  padding-bottom: 0.4rem;
+}
+
+.letter-compose--taper-bottom .letter-compose-columns--fold-split > .card-message-input {
+  padding-bottom: 0.15rem;
+}
+
+/* flat_5: top + bottom panels
+   --letter-fold-crease = empty band size on the fold
+   --letter-fold-top / --letter-fold-bottom = relative panel heights (moves crease)
+   --letter-fold-bottom-trim = crop from the bottom of the lower panel (last lines) */
+.letter-compose-columns--fold-split {
+  --letter-fold-crease: 1%;
+  --letter-fold-top: 2;
+  --letter-fold-bottom: 1;
+  --letter-fold-bottom-trim: 4em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--letter-fold-crease);
+}
+
+.letter-compose-columns--fold-split > .card-message-input {
+  min-height: 0;
+}
+
+.letter-compose-columns--fold-split > .card-message-input:first-of-type {
+  flex: var(--letter-fold-top) 1 0;
+  padding-bottom: 0;
+}
+
+.letter-compose-columns--fold-split > .card-message-input:last-of-type {
+  flex: var(--letter-fold-bottom) 1 0;
+  padding-top: 0;
+  /* Shorten usable lines at the bottom without moving the crease */
+  padding-bottom: var(--letter-fold-bottom-trim);
+  box-sizing: border-box;
 }
 
 .card-message-input {
@@ -599,8 +900,16 @@ body.envelope-zoom-active footer {
   transform: translateY(0) rotateY(180deg);
 }
 
+.letter-insert-card--front {
+  transform: translateY(0) rotateY(0deg);
+}
+
 .letter-insert-card--lift {
   animation: letter-insert-lift 1200ms var(--letter-insert-easing) forwards;
+}
+
+.letter-insert-card--front.letter-insert-card--lift {
+  animation: letter-insert-lift-front 1200ms var(--letter-insert-easing) forwards;
 }
 
 .letter-insert-card--flip {
@@ -611,8 +920,41 @@ body.envelope-zoom-active footer {
   animation: letter-insert-drop 1200ms var(--letter-insert-easing) forwards;
 }
 
+.letter-insert-card--front.letter-insert-card--insert {
+  animation: letter-insert-drop-front 1200ms var(--letter-insert-easing)
+    forwards;
+}
+
 .letter-insert-card--done {
-  transform: translateY(24%) rotateY(0deg);
+  transform: translateY(5%) rotateY(0deg);
+}
+
+.letter-insert-card--front.letter-insert-card--done {
+  transform: translateY(5%) rotateY(0deg);
+}
+
+/* flat_3 insert: reverse the upright rotate, then tuck in */
+.letter-insert-card--lift-rotate {
+  transform: translateX(28%) rotate(90deg);
+  transform-origin: center center;
+}
+
+.letter-insert-card--lift-rotate.letter-insert-card--lift {
+  animation: letter-insert-lift-rotate 1200ms var(--letter-insert-easing)
+    forwards;
+}
+
+.letter-insert-card--lift-rotate.letter-insert-card--flip {
+  animation: letter-insert-reorient 800ms var(--letter-insert-easing) forwards;
+}
+
+.letter-insert-card--lift-rotate.letter-insert-card--insert {
+  animation: letter-insert-drop-rotate 1200ms var(--letter-insert-easing)
+    forwards;
+}
+
+.letter-insert-card--lift-rotate.letter-insert-card--done {
+  transform: translateX(-5%) rotate(0deg);
 }
 
 .envelope-back-flip-card {
@@ -643,7 +985,10 @@ body.envelope-zoom-active footer {
 }
 
 .envelope-front-face {
+  /* Flatten layer stack so letter/bottom z-index wins over 3D transforms */
   transform: rotateY(0deg);
+  transform-style: flat;
+  isolation: isolate;
 }
 
 .envelope-back-face {
@@ -724,7 +1069,7 @@ body.envelope-zoom-active footer {
 }
 
 .envelope-top-flap--opening .envelope-top-flap-card {
-  animation: envelope-top-flap-open 1400ms cubic-bezier(0.22, 1, 0.36, 1)
+  animation: envelope-top-flap-open 700ms cubic-bezier(0.22, 1, 0.36, 1)
     forwards;
 }
 
@@ -855,27 +1200,47 @@ body.envelope-zoom-active footer {
   }
 
   to {
-    transform: translateY(-40%) rotateY(180deg);
+    transform: translateY(-55%) rotateY(180deg);
+  }
+}
+
+@keyframes letter-insert-lift-front {
+  from {
+    transform: translateY(0) rotateY(0deg);
+  }
+
+  to {
+    transform: translateY(-55%) rotateY(0deg);
   }
 }
 
 @keyframes letter-insert-flip {
   from {
-    transform: translateY(-40%) rotateY(180deg);
+    transform: translateY(-55%) rotateY(180deg);
   }
 
   to {
-    transform: translateY(-40%) rotateY(0deg);
+    transform: translateY(-55%) rotateY(0deg);
   }
 }
 
 @keyframes letter-insert-drop {
   from {
-    transform: translateY(-40%) rotateY(0deg);
+    transform: translateY(-55%) rotateY(0deg);
   }
 
   to {
-    transform: translateY(22%) rotateY(0deg);
+    transform: translateY(5%) rotateY(0deg);
+  }
+}
+
+@keyframes letter-insert-drop-front {
+  from {
+    transform: translateY(-55%) rotateY(0deg);
+  }
+
+  to {
+    transform: translateY(5%) rotateY(0deg);
   }
 }
 
@@ -900,29 +1265,238 @@ body.envelope-zoom-active footer {
   }
 }
 
+@keyframes letter-z-index-rise-settle {
+  0%,
+  48% {
+    z-index: var(--letter-z-base, 5);
+  }
+
+  55%,
+  100% {
+    z-index: var(--letter-z-top, 50);
+  }
+}
+
+@keyframes letter-z-index-rise-rotate-settle {
+  0%,
+  40% {
+    z-index: var(--letter-z-base, 5);
+  }
+
+  50%,
+  100% {
+    z-index: var(--letter-z-top, 50);
+  }
+}
+
 @keyframes letter-lift-then-flip {
   0% {
     transform: translateY(0) rotateY(0deg) scale(1);
   }
 
   35% {
-    transform: translateY(-40%) rotateY(0deg) scale(1);
+    transform: translateY(-55%) rotateY(0deg) scale(1);
   }
 
   45% {
-    transform: translateY(-40%) rotateY(0deg) scale(1);
+    transform: translateY(-55%) rotateY(0deg) scale(1);
   }
 
   65% {
-    transform: translateY(-40%) rotateY(180deg) scale(1);
+    transform: translateY(-55%) rotateY(180deg) scale(1);
   }
 
   73.3% {
-    transform: translateY(-40%) rotateY(180deg) scale(1);
+    transform: translateY(-55%) rotateY(180deg) scale(1);
   }
 
   100% {
-    transform: translateY(-40%) rotateY(180deg) scale(var(--letter-open-scale, 1));
+    transform: translateY(-55%) rotateY(180deg) scale(var(--letter-open-scale, 1));
+  }
+}
+
+@keyframes letter-lift-then-settle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  35% {
+    transform: translateY(-55%) scale(1);
+  }
+
+  48% {
+    transform: translateY(-55%) scale(1);
+  }
+
+  100% {
+    transform: translateY(-28%) scale(var(--letter-open-scale, 1));
+  }
+}
+
+@keyframes letter-lift-rotate-mover {
+  0% {
+    transform: translateX(0);
+  }
+
+  28% {
+    transform: translateX(55%);
+  }
+
+  100% {
+    transform: translateX(55%);
+  }
+}
+
+@keyframes letter-lift-rotate-spin {
+  0%,
+  38% {
+    transform: rotate(0deg);
+  }
+
+  62%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes letter-insert-mover-lift {
+  from {
+    transform: translateX(55%);
+  }
+
+  to {
+    transform: translateX(55%);
+  }
+}
+
+@keyframes letter-insert-mover-drop {
+  from {
+    transform: translateX(55%);
+  }
+
+  to {
+    transform: translateX(-5%);
+  }
+}
+
+@keyframes letter-insert-spin-reorient {
+  from {
+    transform: rotate(90deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes letter-lift-rotate-then-settle {
+  0% {
+    transform: translateX(0) rotate(0deg) scale(1);
+  }
+
+  28% {
+    transform: translateX(55%) rotate(0deg) scale(1);
+  }
+
+  38% {
+    transform: translateX(55%) rotate(0deg) scale(1);
+  }
+
+  62% {
+    transform: translateX(55%) rotate(90deg) scale(1);
+  }
+
+  100% {
+    transform: translateX(55%) rotate(90deg)
+      scale(var(--letter-open-scale, 1));
+  }
+}
+
+@keyframes letter-insert-lift-rotate {
+  from {
+    transform: translateX(55%) rotate(90deg);
+  }
+
+  to {
+    transform: translateX(55%) rotate(90deg);
+  }
+}
+
+@keyframes letter-insert-reorient {
+  from {
+    transform: translateX(55%) rotate(90deg);
+  }
+
+  to {
+    transform: translateX(55%) rotate(0deg);
+  }
+}
+
+@keyframes letter-insert-drop-rotate {
+  from {
+    transform: translateX(55%) rotate(0deg);
+  }
+
+  to {
+    transform: translateX(-5%) rotate(0deg);
+  }
+}
+
+@keyframes letter-z-index-rise-fold {
+  0%,
+  40% {
+    z-index: var(--letter-z-base, 5);
+  }
+
+  46%,
+  100% {
+    z-index: var(--letter-z-top, 50);
+  }
+}
+
+@keyframes letter-fold-lift-then-drop {
+  0% {
+    transform: translateY(0);
+  }
+
+  30% {
+    transform: translateY(-55%);
+  }
+
+  40% {
+    transform: translateY(-55%);
+  }
+
+  100% {
+    transform: translateY(-40%);
+  }
+}
+
+@keyframes letter-fold-closed-exit {
+  0%,
+  40% {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  46%,
+  100% {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@keyframes letter-fold-opened-enter {
+  0%,
+  40% {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  46%,
+  100% {
+    grid-template-rows: 1fr;
+    opacity: 1;
   }
 }
 

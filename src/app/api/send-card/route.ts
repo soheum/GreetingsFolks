@@ -5,12 +5,18 @@ import type { Attachment } from "resend";
 import { cardEmailImage, closedEnvelopeImage } from "@/lib/card-images";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
-const MAX_MESSAGE_LENGTH = 420;
+const MAX_MESSAGE_LENGTH = 600;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SENDABLE_CARD_IMAGES = new Set([
   "/images/flat_1.webp",
+  "/images/flat_2.webp",
+  "/images/flat_3.webp",
+  "/images/flat_4.webp",
+  "/images/flat_5.webp",
+  "/images/flat_6.webp",
   "/images/flat_7.webp",
   "/images/flat_8.webp",
+  "/images/flat_9.webp",
 ]);
 
 export const runtime = "nodejs";

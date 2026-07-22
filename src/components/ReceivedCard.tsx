@@ -12,6 +12,7 @@ import {
 import { Button } from "./Button";
 import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
 import { postFallImage } from "@/lib/card-images";
+import { useLocale } from "@/lib/locale";
 
 const FALL_MS = 1100;
 const HANDOFF_MS = 900;
@@ -127,7 +128,7 @@ function ReceiveTopFlap({
           {/* While sealed, sticker is rendered as a top overlay so letter can sit under it */}
           {mode !== "closed" ? (
             <Image
-              src="/images/sticker.png"
+              src="/images/sticker.webp"
               alt=""
               aria-hidden
               width={256}
@@ -153,10 +154,42 @@ function ReceiveLetter({
   mode: "pocketed" | "flipping" | "flipped";
 }) {
   const topPercent = layer.topPercent ?? 50;
-  const backSrc = layer.backSrc!;
-  const backWidth = layer.backWidth!;
-  const backHeight = layer.backHeight!;
+  const hasBack = Boolean(layer.backSrc && layer.backWidth && layer.backHeight);
+  const usesLiftSettle = layer.letterOpenMotion === "lift-settle";
+  const usesLiftRotateSettle = layer.letterOpenMotion === "lift-rotate-settle";
+  const usesFoldOpen =
+    layer.letterOpenMotion === "fold-open" &&
+    Boolean(layer.insideSrc && layer.insideWidth && layer.insideHeight);
+  const composeOnFront =
+    !hasBack || usesLiftSettle || usesLiftRotateSettle || usesFoldOpen;
+  const backSrc = layer.backSrc;
+  const backWidth = layer.backWidth;
+  const backHeight = layer.backHeight;
+  const insideSrc = layer.insideSrc;
+  const insideWidth = layer.insideWidth;
+  const insideHeight = layer.insideHeight;
   const { left, right } = splitMessageColumns(message);
+  const isSingleColumn = layer.composeLayout === "single";
+  const isFoldSplit = layer.composeLayout === "fold-split";
+  const composeInsetClass =
+    layer.composeShape === "oval-bottom"
+      ? "letter-compose--oval-bottom"
+      : layer.composeShape === "taper-bottom"
+        ? "letter-compose--taper-bottom"
+        : (layer.composeInset ?? "inset-[8%_8%_9%]");
+  const composeColumnsClass =
+    layer.composeShape === "oval-bottom"
+      ? "letter-compose-columns flex h-full w-full gap-1"
+      : isFoldSplit
+        ? "letter-compose-columns letter-compose-columns--fold-split flex h-full w-full flex-col"
+        : layer.composeShape === "taper-bottom"
+          ? "letter-compose-columns flex h-full w-full gap-1"
+          : isSingleColumn
+            ? "letter-compose-columns flex h-[80%] w-full"
+            : "letter-compose-columns flex h-[80%] w-full gap-1";
+  const usesShapedCompose =
+    layer.composeShape === "oval-bottom" ||
+    layer.composeShape === "taper-bottom";
 
   if (mode === "pocketed") {
     return (
@@ -184,15 +217,215 @@ function ReceiveLetter({
     );
   }
 
-  const cardClass =
-    mode === "flipping"
-      ? "letter-flip-card letter-flip-card--receive block h-auto w-full"
-      : "letter-flip-card letter-flip-card--receive-done block h-auto w-full";
-
   const composeClass =
     mode === "flipping"
       ? "letter-compose letter-compose--ready"
       : "letter-compose letter-compose--visible";
+
+  const messageFields = (
+    <div
+      className={`${composeClass} absolute ${composeInsetClass} flex flex-col px-[0%] ${
+        usesShapedCompose
+          ? "justify-start pb-[0%] pt-[0%]"
+          : "justify-end pb-[2%] pt-[10%]"
+      }`}
+      style={
+        layer.composeLineHeight != null
+          ? ({
+              "--text-letter--line-height": String(layer.composeLineHeight),
+            } as CSSProperties)
+          : undefined
+      }
+    >
+      <div className={composeColumnsClass}>
+        {isSingleColumn ? (
+          <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
+            {message}
+          </p>
+        ) : (
+          <>
+            <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
+              {left}
+            </p>
+            <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
+              {right}
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  if (composeOnFront) {
+    if (usesFoldOpen && insideSrc && insideWidth && insideHeight) {
+      const done = mode === "flipped";
+      return (
+        <div
+          className={`letter-fold-open-scene absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
+            done ? "letter-fold-open-card--done letter-flip-scene--elevated" : ""
+          }`}
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              width: `${letterWidthPercent(layer)}%`,
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          <div className="letter-fold-open-mover">
+            <div className="letter-fold-closed">
+              <div className="letter-fold-closed-inner">
+                <Image
+                  src={layer.src}
+                  alt=""
+                  aria-hidden
+                  width={layer.width}
+                  height={layer.height}
+                  priority
+                  className="h-auto w-full"
+                />
+              </div>
+            </div>
+            <div className="letter-fold-opened">
+              <div className="letter-fold-opened-inner">
+                <Image
+                  src={insideSrc}
+                  alt=""
+                  aria-hidden
+                  width={insideWidth}
+                  height={insideHeight}
+                  priority
+                  className="h-auto w-full"
+                />
+                {messageFields}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (usesLiftRotateSettle) {
+      const sceneClass =
+        mode === "flipped"
+          ? "letter-flip-scene--elevated"
+          : "letter-lift-rotate-settle-scene";
+      const doneClass = mode === "flipped" ? " letter-lift-rotate-settle-card--done" : "";
+
+      return (
+        <div
+          className={`${sceneClass}${doneClass} absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0`}
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              "--letter-open-scale": 1,
+              width: `${letterWidthPercent(layer)}%`,
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          <div className="letter-lift-rotate-settle-mover">
+            <div className="letter-lift-rotate-settle-spin">
+              <div className="relative block h-auto w-full">
+                <Image
+                  src={layer.src}
+                  alt=""
+                  aria-hidden
+                  width={layer.width}
+                  height={layer.height}
+                  priority
+                  className="h-auto w-full"
+                />
+                {messageFields}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (usesLiftSettle) {
+      const sceneClass =
+        mode === "flipped"
+          ? "letter-flip-scene--elevated"
+          : "letter-lift-settle-scene";
+      const cardClass =
+        mode === "flipped"
+          ? "letter-lift-settle-card letter-lift-settle-card--done block h-auto w-full"
+          : "letter-lift-settle-card block h-auto w-full";
+
+      return (
+        <div
+          className={`${sceneClass} absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0`}
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              "--letter-open-scale": 1,
+              width: `${letterWidthPercent(layer)}%`,
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          <div className={cardClass}>
+            <div className="relative block h-auto w-full">
+              <Image
+                src={layer.src}
+                alt=""
+                aria-hidden
+                width={layer.width}
+                height={layer.height}
+                priority
+                className="h-auto w-full"
+              />
+              {messageFields}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
+          mode === "flipped" ? "letter-flip-scene--elevated" : ""
+        }`}
+        style={
+          {
+            "--letter-top": `${topPercent}%`,
+            "--letter-z-base": layer.zIndex,
+            "--letter-z-top": 50,
+            zIndex: 50,
+            width: `${letterWidthPercent(layer)}%`,
+            transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+          } as CSSProperties
+        }
+      >
+        <div className="relative block h-auto w-full">
+          <Image
+            src={layer.src}
+            alt=""
+            aria-hidden
+            width={layer.width}
+            height={layer.height}
+            priority
+            className="h-auto w-full"
+          />
+          {messageFields}
+        </div>
+      </div>
+    );
+  }
+
+  const cardClass =
+    mode === "flipping"
+      ? "letter-flip-card letter-flip-card--receive block h-auto w-full"
+      : "letter-flip-card letter-flip-card--receive-done block h-auto w-full";
 
   return (
     <div
@@ -222,26 +455,15 @@ function ReceiveLetter({
         />
         <div className="letter-flip-face letter-flip-face--back block h-auto w-full">
           <Image
-            src={backSrc}
+            src={backSrc!}
             alt=""
             aria-hidden
-            width={backWidth}
-            height={backHeight}
+            width={backWidth!}
+            height={backHeight!}
             priority
             className="h-auto w-full"
           />
-          <div
-            className={`${composeClass} absolute inset-[8%_8%_9%] flex flex-col justify-end px-[0%] pb-[2%] pt-[10%]`}
-          >
-            <div className="letter-compose-columns flex h-[80%] w-full gap-1">
-              <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
-                {left}
-              </p>
-              <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
-                {right}
-              </p>
-            </div>
-          </div>
+          {messageFields}
         </div>
       </div>
     </div>
@@ -298,8 +520,14 @@ function ReceiveEnvelopeOpen({
   fallSrc: string;
   cardTitle: string;
 }) {
+  const { t, envelopeCopy } = useLocale();
   const layers = envelope.layers!;
   const flap = envelope.topFlap!;
+  const copy = envelopeCopy({
+    title: envelope.title,
+    subtitle: envelope.subtitle,
+    description: envelope.description,
+  });
   const fillLayer = layers.find((layer) => layer.anchor === "fill")!;
   const letterLayer = layers.find((layer) => layer.anchor === "center")!;
   const bottomLayer = layers.find((layer) => layer.anchor === "bottom")!;
@@ -392,7 +620,7 @@ function ReceiveEnvelopeOpen({
                 />
               )}
 
-            {!isSealed && letterLayer.backSrc ? (
+            {!isSealed ? (
               <ReceiveLetter
                 layer={letterLayer}
                 message={message}
@@ -461,7 +689,7 @@ function ReceiveEnvelopeOpen({
                       style={{ transform: "rotateX(180deg)" }}
                     >
                       <Image
-                        src="/images/sticker.png"
+                        src="/images/sticker.webp"
                         alt=""
                         aria-hidden
                         width={256}
@@ -499,11 +727,11 @@ function ReceiveEnvelopeOpen({
         }`}
         aria-hidden={!showBottomBar}
       >
-        <h3 className="truncate">{envelope.title}</h3>
+        <h2 className="truncate">{copy.title}</h2>
         <div className="flex shrink-0 items-center gap-3">
-          <Button variant="outline">View details</Button>
+          <Button variant="outline">{t.viewDetails}</Button>
           <Button variant="primary" size="md" href="/">
-            Send reply
+            {t.sendReply}
             <span aria-hidden className="text-sm leading-none">
               ↗
             </span>
@@ -520,6 +748,7 @@ export function ReceivedCard({
   cardImage,
   envelope,
 }: ReceivedCardProps) {
+  const { t } = useLocale();
   const [stage, setStage] = useState<ReceiveStage>("landing");
   const [fallDone, setFallDone] = useState(false);
   const [pose, setPose] = useState<HandoffPose | null>(null);
@@ -616,7 +845,7 @@ export function ReceivedCard({
 
           {fallDone ? (
             <p className="pointer-events-none absolute top-[10%] left-1/2 z-30 w-[90%] -translate-x-1/2 text-center text-white">
-              Click on the letter to open the card
+              {t.openLetterHint}
             </p>
           ) : null}
 
@@ -642,7 +871,7 @@ export function ReceivedCard({
           </button>
 
           <Image
-            src="/images/post_top_mobile.png"
+            src="/images/post_top_mobile.webp"
             alt=""
             aria-hidden
             width={1080}
@@ -652,7 +881,7 @@ export function ReceivedCard({
             className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain md:hidden"
           />
           <Image
-            src="/images/post_top.png"
+            src="/images/post_top.webp"
             alt=""
             aria-hidden
             width={1920}
