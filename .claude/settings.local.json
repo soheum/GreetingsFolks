@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python3 -c \"import PIL; print\\(PIL.__version__\\)\")",
       "Bash(node -e ' *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(grep -E \"^flat_[0-9]+_more\\\\.jpg$\")"
     ]
   }
 }

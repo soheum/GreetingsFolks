@@ -11,15 +11,24 @@ export type EnvelopeLayer = {
   backWidth?: number;
   backHeight?: number;
   /** Text area shape on the letter (default rectangular inset). */
-  composeShape?: "oval-bottom" | "taper-bottom";
+  composeShape?: "oval-bottom" | "taper-bottom" | "taper-heave";
   /**
    * Open motion when writing.
    * - omit / default with backSrc: lift + flip to letter back
    * - "lift-settle": lift up then down on the front (no flip); compose on front
    * - "fold-open": lift, then top cover flaps open while settling down; compose on inside
    * - "lift-rotate-settle": lift, rotate 90° clockwise (e.g. -90 → upright), settle; compose on front
+   * - "lift-rotate-flip": same as lift-rotate-settle, then Y-flip to letter back; compose on back
+   * - "lift-rotate-right": upright letter lifts, then rotates 90° clockwise; compose on front
+   * - "tri-fold-open": left panel opens, then right cover opens; compose on center
    */
-  letterOpenMotion?: "lift-settle" | "fold-open" | "lift-rotate-settle";
+  letterOpenMotion?:
+    | "lift-settle"
+    | "fold-open"
+    | "lift-rotate-settle"
+    | "lift-rotate-flip"
+    | "lift-rotate-right"
+    | "tri-fold-open";
   /** Message field layout (default two side-by-side columns). */
   composeLayout?: "single" | "fold-split";
   /**
@@ -29,10 +38,34 @@ export type EnvelopeLayer = {
   composeInset?: string;
   /** Letter message line-height (unitless). Overrides --text-letter--line-height for this letter only. */
   composeLineHeight?: number;
-  /** Opened letter face for fold-open motion. */
+  /** Letter message font-size (CSS length). Overrides --text-letter for this letter only. Prefer cqw (e.g. "6cqw") so text still tracks the letter. */
+  composeFontSize?: string;
+  /** Opened letter face for fold-open motion (or full open art for tri-fold center crop). */
   insideSrc?: string;
   insideWidth?: number;
   insideHeight?: number;
+  /** Tri-fold: left inside panel. */
+  insideLeftSrc?: string;
+  insideLeftWidth?: number;
+  insideLeftHeight?: number;
+  /** Tri-fold: mid-open composite (shown behind the left flap while it opens). */
+  insideMidSrc?: string;
+  insideMidWidth?: number;
+  insideMidHeight?: number;
+  /** Tri-fold: right inside panel. */
+  insideRightSrc?: string;
+  insideRightWidth?: number;
+  insideRightHeight?: number;
+  /** Closed outside flap (right), above the letter base/center. */
+  outsideRightSrc?: string;
+  outsideRightWidth?: number;
+  outsideRightHeight?: number;
+  /** Closed outside flap (left), topmost over right outside. */
+  outsideLeftSrc?: string;
+  outsideLeftWidth?: number;
+  outsideLeftHeight?: number;
+  /** Extra scale applied to the letter while writing/opening. */
+  letterWriteScale?: number;
 };
 
 export type EnvelopeTopFlap = {
@@ -57,6 +90,8 @@ export type Envelope = {
   title: string;
   subtitle: string;
   description: string;
+  /** Optional small footnote under the description (e.g. artwork credit). */
+  descriptionNote?: string;
   alt: string;
   width: number;
   height: number;
@@ -74,9 +109,9 @@ export type Envelope = {
 export const ENVELOPES: readonly Envelope[] = [
   {
     title: "Full Moon Dalhangari",
-    subtitle: "May abundant fortune always be by your side",
+    subtitle: "May abundant fortune always be with you",
     description:
-      "A card to hold your heartfelt words, inspired by graceful beauty of Korea.",
+      "A card to hold your heartfelt words, inspired by the graceful beauty of Korea.",
     alt: "Yellow envelope",
     width: 1907,
     height: 2693,
@@ -110,8 +145,8 @@ export const ENVELOPES: readonly Envelope[] = [
         height: 1127,
         anchor: "center",
         zIndex: 5,
-        widthPercent: 76,
-        topPercent: 68,
+        widthPercent: 84,
+        topPercent: 72,
         backSrc: "/images/flat_6_letter_back.webp",
         backWidth: 1318,
         backHeight: 1132,
@@ -131,7 +166,9 @@ export const ENVELOPES: readonly Envelope[] = [
     title: "Strawberry",
     subtitle: "May happiness come in everyday moments",
     description:
-      "A card inspired by the wild raspberry in Chochungdo (草蟲圖)*, symbolising abundance, longevity and prosperity",
+      "A card inspired by the wild raspberry in Chochungdo (草蟲圖)*,\nsymbolising abundance, longevity and prosperity",
+    descriptionNote:
+      'Chochungdo(草蟲圖)* by Shin Saimdang, or "paintings of grasses and insects," delicately captures the small lives of nature.',
     alt: "Red envelope",
     width: 1907,
     height: 2342,
@@ -184,15 +221,16 @@ export const ENVELOPES: readonly Envelope[] = [
     ],
   },
   {
-    title: "Birthday Guardian",
+    title: "Birthday Guard",
     subtitle: "A guardian of your birthday",
     description:
-      "A birthday card with a heartfelt message from the mystical White Tiger",
+      "A birthday card with a heartfelt message from a mystical white tiger",
     alt: "Pink envelope",
     width: 1920,
     height: 2418,
     featured: false,
     sendable: true,
+    zoomScale: 1.8,
     topFlap: {
       insideSrc: "/images/flat_2_top_inside.webp",
       insideWidth: 1920,
@@ -224,6 +262,9 @@ export const ENVELOPES: readonly Envelope[] = [
         rotate: -90,
         widthPercent: 58,
         topPercent: 70,
+        letterOpenMotion: "lift-rotate-flip",
+        composeLayout: "single",
+        composeInset: "inset-[5%_5%_5%]",
         backSrc: "/images/flat_2_letter_back.webp",
         backWidth: 1238,
         backHeight: 1779,
@@ -247,7 +288,7 @@ export const ENVELOPES: readonly Envelope[] = [
     height: 2342,
     featured: false,
     sendable: true,
-    zoomScale: 1.4,
+    zoomScale: 1.8,
     topFlap: {
       insideSrc: "/images/flat_3_top_inside.webp",
       insideWidth: 1906,
@@ -281,8 +322,9 @@ export const ENVELOPES: readonly Envelope[] = [
         topPercent: 73,
         letterOpenMotion: "lift-rotate-settle",
         composeLayout: "single",
-        composeInset: "inset-[15%_10%_10%]",
-        composeLineHeight: 1.7,
+        composeInset: "inset-[9%_15%_2%]",
+        composeFontSize: "4.7cqw",
+        composeLineHeight: 2.2,
       },
       {
         src: "/images/flat_3_bottom.webp",
@@ -333,8 +375,11 @@ export const ENVELOPES: readonly Envelope[] = [
         anchor: "center",
         zIndex: 5,
         widthPercent: 82,
-        topPercent: 71,
+        topPercent: 73,
         letterOpenMotion: "fold-open",
+        composeLayout: "fold-split",
+        composeShape: "taper-heave",
+        composeFontSize: "4.7cqw",
         insideSrc: "/images/flat_4_letter_inside.webp",
         insideWidth: 1422,
         insideHeight: 2043,
@@ -352,7 +397,9 @@ export const ENVELOPES: readonly Envelope[] = [
     title: "Blue Night Flowers",
     subtitle: "May abundant fortune be with you",
     description:
-      "A card inspired by the evening blooms of Chochungdo*, symbolising success, fortune and abundance",
+      "A card inspired by the evening blooms of Chochungdo*,\nsymbolising success, fortune and abundance",
+    descriptionNote:
+      'Chochungdo(草蟲圖)* by Shin Saimdang, or "paintings of grasses and insects," delicately captures the small lives of nature.',
     alt: "Blue envelope",
     width: 1907,
     height: 2466,
@@ -383,18 +430,19 @@ export const ENVELOPES: readonly Envelope[] = [
       },
       {
         src: "/images/flat_5_letter.webp",
-        width: 1442,
-        height: 1043,
+        width: 1433,
+        height: 1020,
         anchor: "center",
         zIndex: 5,
-        widthPercent: 76,
-        topPercent: 71,
+        widthPercent: 82,
+        topPercent: 72,
         letterOpenMotion: "fold-open",
         composeLayout: "fold-split",
         composeShape: "taper-bottom",
+        composeFontSize: "4.7cqw",
         insideSrc: "/images/flat_5_letter_inside.webp",
-        insideWidth: 1444,
-        insideHeight: 2025,
+        insideWidth: 1422,
+        insideHeight: 2043,
       },
       {
         src: "/images/flat_5_bottom.webp",
@@ -462,7 +510,9 @@ export const ENVELOPES: readonly Envelope[] = [
     title: "Shin Saimdang's Garden",
     subtitle: "Abundant blessings be with you",
     description:
-      "A Joseon-style botanical card inspired by Chochungdo*, symbolising prosperity in bloom",
+      "A Joseon-style botanical card inspired by Chochungdo*,\nsymbolising prosperity in bloom",
+    descriptionNote:
+      'Chochungdo(草蟲圖)* by Shin Saimdang, or "paintings of grasses and insects," delicately captures the small lives of nature.',
     alt: "Mint envelope",
     width: 1907,
     height: 2342,
@@ -515,7 +565,7 @@ export const ENVELOPES: readonly Envelope[] = [
     ],
   },
   {
-    title: "Swallow sijeonji",
+    title: "Swallow Sijeonji",
     subtitle: "With good news",
     description:
       "Good news carried by a swallow and Sijeonji, the popular woodblock-printed letter paper of the Joseon Dynasty",
@@ -524,8 +574,7 @@ export const ENVELOPES: readonly Envelope[] = [
     height: 2728,
     featured: false,
     sendable: true,
-    zoomScale: 1.2,
-    zoomTranslateY: "-14vh",
+    zoomTranslateY: "-13vh",
     topFlap: {
       insideSrc: "/images/flat_9_top_inside.webp",
       insideWidth: 1133,
@@ -554,10 +603,14 @@ export const ENVELOPES: readonly Envelope[] = [
         height: 1776,
         anchor: "center",
         zIndex: 5,
-        widthPercent: 86,
-        topPercent: 70,
-        letterOpenMotion: "lift-settle",
+        widthPercent: 80,
+        topPercent: 68,
+        letterOpenMotion: "lift-rotate-right",
         composeLayout: "single",
+        /* Upright write area on landscape letter: inset-[top_right_bottom_left] */
+        composeInset: "inset-[20%_4%_21%_4%]",
+        composeFontSize: "2.7cqw",
+        composeLineHeight: 2.6,
       },
       {
         src: "/images/flat_9_bottom.webp",
@@ -565,6 +618,74 @@ export const ENVELOPES: readonly Envelope[] = [
         height: 1485,
         anchor: "bottom",
         zIndex: 10,
+      },
+    ],
+  },
+  {
+    title: "Winter Pinetree",
+    subtitle: "Evergreen Happiness",
+    description:
+      "Featuring the evergreen pines of Irworobongdo* and a playful rabbit beneath a snowy moon",
+    alt: "Blue winter pine envelope",
+    width: 1455,
+    height: 3324,
+    featured: false,
+    sendable: true,
+    zoomTranslateY: "-13vh",
+    topFlap: {
+      insideSrc: "/images/flat_10_top_inside.webp",
+      insideWidth: 1455,
+      insideHeight: 1256,
+      backSrc: "/images/flat_10_back.webp",
+      backWidth: 1458,
+      backHeight: 2039,
+      outsideSrc: "/images/flat_10_top_outside.webp",
+      outsideWidth: 1455,
+      outsideHeight: 1259,
+      widthPercent: 100,
+      topPercent: 0,
+      zIndex: 60,
+    },
+    layers: [
+      {
+        src: "/images/flat_10.webp",
+        width: 1455,
+        height: 3324,
+        anchor: "fill",
+        zIndex: 0,
+      },
+      {
+        src: "/images/flat_10_letter_center.webp",
+        width: 1226,
+        height: 1812,
+        anchor: "center",
+        zIndex: 5,
+        widthPercent: 78,
+        topPercent: 65,
+        letterOpenMotion: "lift-settle",
+        composeLayout: "single",
+        composeInset: "inset-[0%_4%_0%_4%]",
+        composeFontSize: "4.7cqw",
+        outsideRightSrc: "/images/flat_10_letter_outside_right.webp",
+        outsideRightWidth: 1136,
+        outsideRightHeight: 1837,
+        outsideLeftSrc: "/images/flat_10_letter_outside_left.webp",
+        outsideLeftWidth: 1175,
+        outsideLeftHeight: 1838,
+        insideRightSrc: "/images/flat_10_letter_inside_right.webp",
+        insideRightWidth: 1127,
+        insideRightHeight: 1812,
+        insideLeftSrc: "/images/flat_10_letter_inside_left.webp",
+        insideLeftWidth: 1175,
+        insideLeftHeight: 1812,
+      },
+      {
+        src: "/images/flat_10_bottom.webp",
+        width: 1463,
+        height: 1451,
+        anchor: "bottom",
+        // Above letter (5); below closed top flap (60)
+        zIndex: 40,
       },
     ],
   },

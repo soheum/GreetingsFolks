@@ -26,7 +26,13 @@ export default async function CardPage({
 }: {
   params: Promise<{ token: string }>;
 }) {
-  const { token } = await params;
+  const { token: rawToken } = await params;
+  const token = decodeURIComponent(rawToken).trim();
+
+  if (!token) {
+    notFound();
+  }
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("sent_cards")
@@ -36,13 +42,27 @@ export default async function CardPage({
     .eq("token", token)
     .maybeSingle<SentCard>();
 
-  if (error || !data) {
+  if (error) {
+    console.error("[card] sent_cards lookup failed", {
+      token,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+    });
+    throw new Error("Unable to load this card right now. Please try again.");
+  }
+
+  if (!data) {
     notFound();
   }
 
   const envelope = findEnvelope(data.card_image);
 
   if (!envelope?.layers || !envelope.topFlap || !envelope.sendable) {
+    console.error("[card] no matching sendable envelope", {
+      token,
+      cardImage: data.card_image,
+    });
     notFound();
   }
 

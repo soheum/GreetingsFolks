@@ -1,6 +1,32 @@
 @import "tailwindcss";
 
 @font-face {
+  font-family: "Traveling Typewriter";
+  src:
+    url("/fonts/TravelingTypewriter.otf") format("opentype"),
+    url("/fonts/TravelingTypewriter.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gowun Batang";
+  src: url("/fonts/GowunBatang-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gowun Batang";
+  src: url("/fonts/GowunBatang-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "Pretendard";
   src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Thin.woff2")
     format("woff2");
@@ -72,11 +98,19 @@
   font-display: swap;
 }
 
+:root {
+  /* Letter handwriting — next/font sets --font-handlee on <html> */
+  --font-letter: var(--font-handlee), "Handlee", cursive;
+}
+
 @theme {
   --font-sans: "neue-haas-grotesk-text", ui-sans-serif, system-ui, sans-serif;
   --font-display: "neue-haas-grotesk-display", ui-sans-serif, system-ui, sans-serif;
-  --font-letter: "Nothing You Could Do", cursive;
+  --font-letter: var(--font-handlee), "Handlee", cursive;
   --font-meta: "IBM Plex Sans", ui-sans-serif, sans-serif;
+  --font-alike: "Alike Angular", ui-serif, Georgia, serif;
+  --font-typewriter: "Traveling Typewriter", "Alike Angular", ui-monospace, monospace;
+  --font-gowun: "Gowun Batang", Batang, serif;
 
   --color-brand: #ec0000;
   --color-text-heading: #0a0a0a;
@@ -135,7 +169,7 @@
   --text-status--font-weight: 400;
 
   --text-letter: 0.625rem;
-  --text-letter--line-height: 1.2;
+  --text-letter--line-height: 1.5;
   --text-letter--font-weight: 400;
 
   --text-letter-lg: 1.5rem;
@@ -253,7 +287,7 @@
 }
 
 @utility text-letter {
-  font-family: var(--font-letter);
+  font-family: var(--font-handlee), "Handlee", cursive;
   font-size: var(--text-letter);
   line-height: var(--text-letter--line-height);
   font-weight: var(--text-letter--font-weight);
@@ -261,11 +295,19 @@
 }
 
 @utility text-letter-lg {
-  font-family: var(--font-letter);
+  font-family: var(--font-handlee), "Handlee", cursive;
   font-size: var(--text-letter-lg);
   line-height: var(--text-letter-lg--line-height);
   font-weight: var(--text-letter-lg--font-weight);
   color: var(--color-text-heading);
+}
+
+@utility font-gowun {
+  font-family: "Gowun Batang", Batang, serif;
+}
+
+@utility font-typewriter {
+  font-family: "Traveling Typewriter", "Alike Angular", ui-monospace, monospace;
 }
 
 @media (min-width: 40rem) {
@@ -290,6 +332,52 @@ body.envelope-zoom-active main {
 body.envelope-zoom-active header,
 body.envelope-zoom-active footer {
   display: none;
+}
+
+/* Envelope carousel heights — keep ~1.5× center/side ratio across breakpoints
+   (aligned with TopNav height steps: default → sm → md → lg → xl → 2xl).
+   Mobile uses a taller description chrome; desktop keeps the compact strip. */
+.postcard-stack {
+  --envelope-center-height: 48vh;
+  --envelope-side-height: 32vh;
+  --carousel-chrome-offset: 20rem;
+}
+
+@media (min-width: 640px) {
+  .postcard-stack {
+    --envelope-center-height: 52vh;
+    --envelope-side-height: 34.5vh;
+    --carousel-chrome-offset: 18rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .postcard-stack {
+    --envelope-center-height: 65vh;
+    --envelope-side-height: 36.5vh;
+    --carousel-chrome-offset: 10rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .postcard-stack {
+    --envelope-center-height: 65vh;
+    --envelope-side-height: 36.5vh;
+  }
+}
+
+@media (min-width: 1280px) {
+  .postcard-stack {
+    --envelope-center-height: 61.25vh;
+    --envelope-side-height: 40vh;
+  }
+}
+
+@media (min-width: 1536px) {
+  .postcard-stack {
+    --envelope-center-height: 63vh;
+    --envelope-side-height: 41.5vh;
+  }
 }
 
 /* Home carousel: letter appears when envelope becomes centered */
@@ -532,16 +620,123 @@ body.envelope-zoom-active footer {
     forwards;
 }
 
+/* Closed letter stack: all layers share one box; only z-index differs */
+.letter-closed-stack {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--letter-stack-aspect);
+  overflow: visible;
+  transform-style: preserve-3d;
+}
+
+.letter-closed-stack__layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  object-position: center center;
+  pointer-events: none;
+}
+
+.letter-closed-stack__center {
+  z-index: 0;
+}
+
+.letter-closed-stack__left {
+  z-index: 1;
+}
+
+.letter-closed-stack__right {
+  z-index: 2;
+}
+
+/* Compose sits above center, under the outside flaps */
+.letter-closed-stack .letter-compose {
+  z-index: 0;
+}
+
+/* Side flaps: outside + inside faces */
+.letter-right-flap,
+.letter-left-flap {
+  position: absolute;
+  inset: 0;
+  perspective: 1800px;
+  pointer-events: none;
+}
+
+.letter-right-flap {
+  z-index: 2;
+}
+
+.letter-left-flap {
+  z-index: 1;
+}
+
+.letter-right-flap-inner,
+.letter-left-flap-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.letter-right-flap-inner {
+  transform-origin: right center;
+}
+
+.letter-left-flap-inner {
+  transform-origin: left center;
+}
+
+.letter-right-flap-face,
+.letter-left-flap-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.letter-right-flap-face--outside,
+.letter-left-flap-face--outside {
+  transform: rotateY(0deg);
+}
+
+.letter-right-flap-face--inside,
+.letter-left-flap-face--inside {
+  transform: rotateY(180deg);
+}
+
+.letter-right-flap-face > :is(span, img),
+.letter-left-flap-face > :is(span, img),
+.letter-side-flap-image {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: fill;
+  object-position: center center;
+}
+
 /* Front-only open: lift up, then settle down with z-index on top */
 .letter-lift-settle-scene {
   --letter-lift-settle-duration: 2400ms;
   --letter-lift-settle-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  --letter-right-flap-duration: 1400ms;
+  --letter-left-flap-duration: 1400ms;
   animation: letter-z-index-rise-settle var(--letter-lift-settle-duration)
     var(--letter-lift-settle-easing) forwards;
 }
 
+.letter-lift-settle-scene--side-flaps,
+.letter-lift-settle-scene--side-flaps .letter-lift-settle-card {
+  transform-style: preserve-3d;
+}
+
 .letter-lift-settle-card {
   position: relative;
+  transform-style: preserve-3d;
   animation: letter-lift-then-settle var(--letter-lift-settle-duration)
     var(--letter-lift-settle-easing) forwards;
 }
@@ -551,12 +746,164 @@ body.envelope-zoom-active footer {
   transform: translateY(-28%) scale(1);
 }
 
+/* Right opens first (after settle), then left */
+.letter-lift-settle-scene--side-flaps .letter-right-flap-inner {
+  animation: letter-right-flap-open var(--letter-right-flap-duration)
+    var(--letter-lift-settle-easing) var(--letter-lift-settle-duration)
+    forwards;
+}
+
+.letter-lift-settle-scene--side-flaps .letter-left-flap-inner {
+  animation: letter-left-flap-open var(--letter-left-flap-duration)
+    var(--letter-lift-settle-easing)
+    calc(var(--letter-lift-settle-duration) + var(--letter-right-flap-duration))
+    forwards;
+}
+
+.letter-lift-settle-card--done .letter-right-flap-inner {
+  animation: none;
+  transform: rotateY(180deg);
+}
+
+.letter-lift-settle-card--done .letter-left-flap-inner {
+  animation: none;
+  transform: rotateY(-180deg);
+}
+
+@keyframes letter-right-flap-open {
+  0% {
+    transform: rotateY(0deg);
+  }
+
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+@keyframes letter-left-flap-open {
+  0% {
+    transform: rotateY(0deg);
+  }
+
+  100% {
+    transform: rotateY(-180deg);
+  }
+}
+
 .letter-lift-settle-scene .letter-compose--ready {
   animation-delay: 1950ms;
 }
 
-/* Sideways letter (flat_3): parent is -90°, so translateX = visual up/down.
-   Mover handles lift; spin handles the 90° upright rotate. */
+.letter-lift-settle-scene--side-flaps .letter-compose--ready {
+  animation-delay: calc(
+    var(--letter-lift-settle-duration) + var(--letter-right-flap-duration) +
+      var(--letter-left-flap-duration) - 200ms
+  );
+}
+
+/* flat_9: upright letter lifts, then rotates 90° clockwise for writing */
+.letter-lift-rotate-right-scene {
+  --letter-lift-rotate-right-duration: 2800ms;
+  --letter-lift-rotate-right-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  --letter-lift-rotate-right-lift: -40%;
+  animation: letter-z-index-rise-rotate-settle
+    var(--letter-lift-rotate-right-duration)
+    var(--letter-lift-rotate-right-easing) forwards;
+}
+
+.letter-lift-rotate-right-mover {
+  position: relative;
+  width: 100%;
+  animation: letter-lift-rotate-right-mover
+    var(--letter-lift-rotate-right-duration)
+    var(--letter-lift-rotate-right-easing) forwards;
+}
+
+.letter-lift-rotate-right-spin {
+  position: relative;
+  width: 100%;
+  transform-origin: center center;
+  animation: letter-lift-rotate-right-spin
+    var(--letter-lift-rotate-right-duration)
+    var(--letter-lift-rotate-right-easing) forwards;
+}
+
+/* Text field stays screen-upright in a frame sized to the rotated (landscape) letter */
+.letter-lift-rotate-right-compose-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  /* Layout letter is portrait (w×h); after 90° CW visual size is h×w */
+  width: calc(100% * var(--letter-h) / var(--letter-w));
+  height: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.letter-lift-rotate-right-compose-frame > .letter-compose {
+  pointer-events: auto;
+}
+
+.letter-lift-rotate-right-card--done .letter-lift-rotate-right-mover,
+.letter-lift-rotate-right-mover--done {
+  animation: none;
+  transform: translateY(var(--letter-lift-rotate-right-lift, -40%));
+}
+
+.letter-lift-rotate-right-card--done .letter-lift-rotate-right-spin,
+.letter-lift-rotate-right-spin--done {
+  animation: none;
+  transform: rotate(90deg);
+}
+
+.letter-lift-rotate-right-scene .letter-compose--ready {
+  animation-delay: 2100ms;
+}
+
+.letter-lift-rotate-right-mover--lift {
+  transform: translateY(var(--letter-lift-rotate-right-lift, -40%));
+  animation: none;
+}
+
+.letter-lift-rotate-right-mover--flip {
+  transform: translateY(var(--letter-lift-rotate-right-lift, -40%));
+  animation: none;
+}
+
+.letter-lift-rotate-right-mover--insert {
+  animation: letter-lift-rotate-right-insert-drop 1200ms
+    var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
+}
+
+.letter-lift-rotate-right-spin--lift {
+  transform: rotate(90deg);
+  animation: none;
+}
+
+.letter-lift-rotate-right-spin--flip {
+  animation: letter-lift-rotate-right-insert-reorient 800ms
+    var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
+}
+
+.letter-lift-rotate-right-spin--insert,
+.letter-lift-rotate-right-spin--done {
+  transform: rotate(0deg);
+  animation: none;
+}
+
+.letter-lift-rotate-right-mover--done {
+  transform: translateY(0);
+}
+
+/* Sideways letter (flat_2 / flat_3): parent is -90°, so translateX = visual up/down.
+   Mover handles lift; spin handles the 90° upright rotate.
+   --letter-lift-rotate-lift = elevated settle (higher % = more upward). */
+.letter-lift-rotate-settle-scene,
+.letter-insert-scene {
+  --letter-lift-rotate-lift: 68%;
+}
+
 .letter-lift-rotate-settle-scene {
   --letter-lift-rotate-settle-duration: 2800ms;
   --letter-lift-rotate-settle-easing: cubic-bezier(0.22, 1, 0.36, 1);
@@ -583,7 +930,7 @@ body.envelope-zoom-active footer {
 .letter-lift-rotate-settle-card--done .letter-lift-rotate-settle-mover,
 .letter-lift-rotate-settle-mover--done {
   animation: none;
-  transform: translateX(55%);
+  transform: translateX(var(--letter-lift-rotate-lift, 72%));
 }
 
 .letter-lift-rotate-settle-card--done .letter-lift-rotate-settle-spin,
@@ -596,6 +943,46 @@ body.envelope-zoom-active footer {
   animation-delay: 2100ms;
 }
 
+/* flat_2: lift + upright rotate, then Y-flip to the letter back */
+.letter-lift-rotate-settle-scene--flip {
+  --letter-lift-rotate-settle-duration: 4200ms;
+  perspective: 1000px;
+}
+
+.letter-lift-rotate-settle-scene--flip .letter-lift-rotate-settle-mover,
+.letter-lift-rotate-settle-scene--flip .letter-lift-rotate-settle-spin {
+  transform-style: preserve-3d;
+}
+
+.letter-lift-rotate-settle-scene--flip .letter-lift-rotate-settle-mover {
+  animation-name: letter-lift-rotate-mover-then-flip;
+}
+
+.letter-lift-rotate-settle-scene--flip .letter-lift-rotate-settle-spin {
+  animation-name: letter-lift-rotate-spin-then-flip;
+}
+
+.letter-lift-rotate-flip-card {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+}
+
+.letter-lift-rotate-settle-scene--flip .letter-lift-rotate-flip-card {
+  animation: letter-lift-rotate-y-flip var(--letter-lift-rotate-settle-duration)
+    var(--letter-lift-rotate-settle-easing) forwards;
+}
+
+.letter-lift-rotate-settle-card--done .letter-lift-rotate-flip-card,
+.letter-lift-rotate-flip-card--done {
+  animation: none;
+  transform: rotateY(180deg);
+}
+
+.letter-lift-rotate-settle-scene--flip .letter-compose--ready {
+  animation-delay: 3200ms;
+}
+
 /* Insert (close) for flat_3 — same axis remap */
 .letter-lift-rotate-settle-mover--lift {
   animation: letter-insert-mover-lift 1200ms var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1))
@@ -603,7 +990,7 @@ body.envelope-zoom-active footer {
 }
 
 .letter-lift-rotate-settle-mover--flip {
-  transform: translateX(55%);
+  transform: translateX(var(--letter-lift-rotate-lift, 72%));
   animation: none;
 }
 
@@ -630,6 +1017,23 @@ body.envelope-zoom-active footer {
 
 .letter-lift-rotate-settle-mover--done {
   transform: translateX(-5%);
+}
+
+/* flat_2 insert: unflip during lift, then reorient like flat_3 */
+.letter-insert-scene .letter-lift-rotate-flip-card {
+  transform: rotateY(180deg);
+}
+
+.letter-lift-rotate-flip-card--lift {
+  animation: letter-insert-unflip 800ms
+    var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
+}
+
+.letter-lift-rotate-flip-card--flip,
+.letter-lift-rotate-flip-card--insert,
+.letter-lift-rotate-flip-card--done {
+  transform: rotateY(0deg);
+  animation: none;
 }
 
 /* Fold-open letter (flat_4 / flat_5):
@@ -701,6 +1105,334 @@ body.envelope-zoom-active footer {
   opacity: 1;
 }
 
+/* flat_10: physical tri-fold — left + right flaps open together */
+.letter-tri-fold-scene {
+  --letter-tri-fold-duration: 3600ms;
+  --letter-tri-fold-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  perspective: 2200px;
+  transform-style: preserve-3d;
+  animation:
+    letter-z-index-rise-fold var(--letter-tri-fold-duration)
+      var(--letter-tri-fold-easing) forwards,
+    letter-tri-fold-width var(--letter-tri-fold-duration)
+      var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-mover {
+  width: 100%;
+  transform-style: preserve-3d;
+  animation: letter-tri-fold-lift var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-spread {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  animation: letter-tri-fold-aspect var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-mid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--tri-left-pct) + var(--tri-center-pct) + var(--tri-right-pct));
+  z-index: 0;
+  display: flex;
+  align-items: stretch;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  animation: letter-tri-fold-mid-fade var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-mid img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+/* Only visible asset during lift: closed letter cover */
+.letter-tri-fold-closed {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  animation: letter-tri-fold-closed-fade var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-closed img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+.letter-tri-fold-center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--tri-left-pct);
+  width: var(--tri-center-pct);
+  z-index: 1;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  animation: letter-tri-fold-panels-reveal var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-left {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--tri-left-pct);
+  z-index: 3;
+  transform-origin: right center;
+  transform-style: preserve-3d;
+  opacity: 0;
+  visibility: hidden;
+  animation: letter-tri-fold-left-open var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--tri-left-pct) + var(--tri-center-pct));
+  width: var(--tri-right-pct);
+  z-index: 4;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  opacity: 0;
+  visibility: hidden;
+  animation: letter-tri-fold-panels-reveal var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-left-inner,
+.letter-tri-fold-right-inner {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+}
+
+.letter-tri-fold-right-inner {
+  animation: letter-tri-fold-right-open var(--letter-tri-fold-duration)
+    var(--letter-tri-fold-easing) forwards;
+}
+
+.letter-tri-fold-right-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.letter-tri-fold-right-face--inside {
+  position: relative;
+}
+
+.letter-tri-fold-right-face--outside {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+
+.letter-tri-fold-center-art {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.letter-tri-fold-center-image {
+  display: block;
+  height: auto;
+  max-width: none;
+}
+
+.letter-tri-fold-scene .letter-compose--ready {
+  animation-delay: 2600ms;
+}
+
+.letter-tri-fold-scene--done {
+  width: var(--tri-open-width) !important;
+  animation: none;
+  z-index: var(--letter-z-top, 50);
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-mover,
+.letter-tri-fold-scene--done .letter-tri-fold-spread,
+.letter-tri-fold-scene--done .letter-tri-fold-left,
+.letter-tri-fold-scene--done .letter-tri-fold-right,
+.letter-tri-fold-scene--done .letter-tri-fold-right-inner,
+.letter-tri-fold-scene--done .letter-tri-fold-center,
+.letter-tri-fold-scene--done .letter-tri-fold-mid,
+.letter-tri-fold-scene--done .letter-tri-fold-closed {
+  animation: none;
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-mover {
+  transform: translateY(-28%);
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-spread {
+  aspect-ratio: var(--tri-open-aspect);
+  overflow: visible;
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-left {
+  transform: rotateY(0deg);
+  opacity: 1;
+  visibility: visible;
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-right,
+.letter-tri-fold-scene--done .letter-tri-fold-center {
+  opacity: 1;
+  visibility: visible;
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-right-inner {
+  transform: rotateY(180deg);
+}
+
+.letter-tri-fold-scene--done .letter-tri-fold-mid,
+.letter-tri-fold-scene--done .letter-tri-fold-closed {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@keyframes letter-tri-fold-width {
+  0%,
+  18% {
+    width: var(--tri-closed-width);
+  }
+
+  100% {
+    width: var(--tri-open-width);
+  }
+}
+
+@keyframes letter-tri-fold-aspect {
+  0%,
+  18% {
+    aspect-ratio: var(--tri-closed-aspect);
+    overflow: hidden;
+  }
+
+  22%,
+  100% {
+    aspect-ratio: var(--tri-open-aspect);
+    overflow: visible;
+  }
+}
+
+@keyframes letter-tri-fold-lift {
+  0% {
+    transform: translateY(0);
+  }
+
+  18% {
+    transform: translateY(-52%);
+  }
+
+  100% {
+    transform: translateY(-28%);
+  }
+}
+
+/* Left leaf hinged on center: folded over, then opens outward to the left */
+@keyframes letter-tri-fold-left-open {
+  0%,
+  18% {
+    transform: rotateY(-180deg);
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  22% {
+    transform: rotateY(-180deg);
+    opacity: 1;
+    visibility: visible;
+  }
+
+  100% {
+    transform: rotateY(0deg);
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* Center + right shells stay invisible through lift */
+@keyframes letter-tri-fold-panels-reveal {
+  0%,
+  18% {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  22%,
+  100% {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* Closed cover (flat_10_letter) is the only letter art during lift */
+@keyframes letter-tri-fold-closed-fade {
+  0%,
+  18% {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  28%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Full open letter visible while both flaps are mid-open */
+@keyframes letter-tri-fold-mid-fade {
+  0%,
+  18% {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  28%,
+  55% {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  82%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Right leaf hinged on center: try 0 → 180 */
+@keyframes letter-tri-fold-right-open {
+  0%,
+  18% {
+    transform: rotateY(0deg);
+  }
+
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
 .letter-flip-card.letter-flip-card--receive {
   animation: letter-lift-then-flip-receive var(--letter-flip-duration)
     var(--letter-flip-easing) forwards;
@@ -730,6 +1462,9 @@ body.envelope-zoom-active footer {
 .letter-compose {
   transform: translateY(0.75rem);
   opacity: 0;
+  /* Text scales with the write area so capacity stays stable across viewports */
+  container-type: inline-size;
+  --text-letter: 2.7cqw;
 }
 
 /* Lantern-shaped letter backs (e.g. flat_6): write area follows the lantern.
@@ -791,6 +1526,39 @@ body.envelope-zoom-active footer {
   padding-bottom: 0.15rem;
 }
 
+/* flat_4 (Heave-ho!) fold write area — tune independently from flat_5 */
+.letter-compose--taper-heave {
+  inset: 5% 8% 6% 8%;
+  border-radius: 3% / 2%;
+  overflow: hidden;
+  padding: 4% 6% 5% 6%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.letter-compose--taper-heave .letter-compose-columns {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.letter-compose--taper-heave .card-message-input {
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  padding-bottom: 0.4rem;
+  color: #262626;
+  caret-color: #262626;
+}
+
+.letter-compose--taper-heave .letter-compose-columns--fold-split > .card-message-input {
+  padding-bottom: 0.15rem;
+}
+
+.letter-fold-opened-inner > .letter-compose {
+  z-index: 3;
+}
+
 /* flat_5: top + bottom panels
    --letter-fold-crease = empty band size on the fold
    --letter-fold-top / --letter-fold-bottom = relative panel heights (moves crease)
@@ -823,7 +1591,7 @@ body.envelope-zoom-active footer {
 }
 
 .card-message-input {
-  font-family: var(--font-letter);
+  font-family: var(--font-handlee), "Handlee", cursive;
   font-size: var(--text-letter);
   line-height: var(--text-letter--line-height);
   border: none;
@@ -845,7 +1613,7 @@ body.envelope-zoom-active footer {
 }
 
 .card-message-input::placeholder {
-  font-family: var(--font-letter);
+  font-family: var(--font-handlee), "Handlee", cursive;
   opacity: 0.55;
 }
 
@@ -1333,17 +2101,63 @@ body.envelope-zoom-active footer {
   }
 }
 
+@keyframes letter-lift-rotate-right-mover {
+  0% {
+    transform: translateY(0);
+  }
+
+  28% {
+    transform: translateY(var(--letter-lift-rotate-right-lift, -40%));
+  }
+
+  100% {
+    transform: translateY(var(--letter-lift-rotate-right-lift, -40%));
+  }
+}
+
+@keyframes letter-lift-rotate-right-spin {
+  0%,
+  38% {
+    transform: rotate(0deg);
+  }
+
+  62%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes letter-lift-rotate-right-insert-reorient {
+  from {
+    transform: rotate(90deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes letter-lift-rotate-right-insert-drop {
+  from {
+    transform: translateY(var(--letter-lift-rotate-right-lift, -40%));
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
 @keyframes letter-lift-rotate-mover {
   0% {
     transform: translateX(0);
   }
 
   28% {
-    transform: translateX(55%);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
   }
 
   100% {
-    transform: translateX(55%);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
   }
 }
 
@@ -1359,19 +2173,68 @@ body.envelope-zoom-active footer {
   }
 }
 
-@keyframes letter-insert-mover-lift {
+/* flat_2 open: keep lift/spin timing close to flat_3, then flip */
+@keyframes letter-lift-rotate-mover-then-flip {
+  0% {
+    transform: translateX(0);
+  }
+
+  19% {
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
+  }
+
+  100% {
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
+  }
+}
+
+@keyframes letter-lift-rotate-spin-then-flip {
+  0%,
+  26% {
+    transform: rotate(0deg);
+  }
+
+  43%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes letter-lift-rotate-y-flip {
+  0%,
+  57% {
+    transform: rotateY(0deg);
+  }
+
+  76%,
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+@keyframes letter-insert-unflip {
   from {
-    transform: translateX(55%);
+    transform: rotateY(180deg);
   }
 
   to {
-    transform: translateX(55%);
+    transform: rotateY(0deg);
+  }
+}
+
+@keyframes letter-insert-mover-lift {
+  from {
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
+  }
+
+  to {
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
   }
 }
 
 @keyframes letter-insert-mover-drop {
   from {
-    transform: translateX(55%);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%));
   }
 
   to {
@@ -1395,46 +2258,49 @@ body.envelope-zoom-active footer {
   }
 
   28% {
-    transform: translateX(55%) rotate(0deg) scale(1);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(0deg)
+      scale(1);
   }
 
   38% {
-    transform: translateX(55%) rotate(0deg) scale(1);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(0deg)
+      scale(1);
   }
 
   62% {
-    transform: translateX(55%) rotate(90deg) scale(1);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(90deg)
+      scale(1);
   }
 
   100% {
-    transform: translateX(55%) rotate(90deg)
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(90deg)
       scale(var(--letter-open-scale, 1));
   }
 }
 
 @keyframes letter-insert-lift-rotate {
   from {
-    transform: translateX(55%) rotate(90deg);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(90deg);
   }
 
   to {
-    transform: translateX(55%) rotate(90deg);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(90deg);
   }
 }
 
 @keyframes letter-insert-reorient {
   from {
-    transform: translateX(55%) rotate(90deg);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(90deg);
   }
 
   to {
-    transform: translateX(55%) rotate(0deg);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(0deg);
   }
 }
 
 @keyframes letter-insert-drop-rotate {
   from {
-    transform: translateX(55%) rotate(0deg);
+    transform: translateX(var(--letter-lift-rotate-lift, 72%)) rotate(0deg);
   }
 
   to {

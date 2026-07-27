@@ -8,8 +8,6 @@ import { ENVELOPES, type Envelope, type EnvelopeLayer } from "@/data/envelopes";
 
 const LETTER_OPEN_SCALE = 1.5;
 const LETTER_FLIP_MS = 3000;
-const MAX_MESSAGE_LENGTH = 420;
-const MAX_COLUMN_LENGTH = MAX_MESSAGE_LENGTH / 2;
 const LETTER_SIZE_MULTIPLIER = 1.125;
 
 const FLAT_1_ENVELOPE = ENVELOPES.find(
@@ -47,7 +45,7 @@ function splitTextToFitColumn(text: string, reference: HTMLTextAreaElement) {
 
   document.body.appendChild(measure);
 
-  let left = text.slice(0, MAX_COLUMN_LENGTH);
+  let left = text;
   measure.value = left;
 
   while (left.length > 0 && measure.scrollHeight > measure.clientHeight) {
@@ -57,8 +55,7 @@ function splitTextToFitColumn(text: string, reference: HTMLTextAreaElement) {
 
   document.body.removeChild(measure);
 
-  const overflow =
-    text.slice(left.length, MAX_COLUMN_LENGTH) + text.slice(MAX_COLUMN_LENGTH);
+  const overflow = text.slice(left.length);
   return { left, overflow };
 }
 
@@ -95,7 +92,7 @@ function TrialLetter({
   const handleLeftChange = (value: string) => {
     const el = leftRef.current;
     if (!el) {
-      onMessageLeftChange(value.slice(0, MAX_COLUMN_LENGTH));
+      onMessageLeftChange(value);
       return;
     }
 
@@ -165,7 +162,7 @@ function TrialLetter({
   const handleRightChange = (value: string) => {
     const el = rightRef.current;
     if (!el) {
-      onMessageRightChange(value.slice(0, MAX_COLUMN_LENGTH));
+      onMessageRightChange(value);
       return;
     }
 
@@ -276,10 +273,13 @@ function TrialLetter({
                 ? "letter-compose--oval-bottom"
                 : layer.composeShape === "taper-bottom"
                   ? "letter-compose--taper-bottom"
-                  : "inset-[8%_8%_9%]"
+                  : layer.composeShape === "taper-heave"
+                    ? "letter-compose--taper-heave"
+                    : "inset-[8%_8%_9%]"
             } flex flex-col px-[0%] ${
               layer.composeShape === "oval-bottom" ||
-              layer.composeShape === "taper-bottom"
+              layer.composeShape === "taper-bottom" ||
+              layer.composeShape === "taper-heave"
                 ? "justify-start pb-[0%] pt-[0%]"
                 : "justify-end pb-[2%] pt-[10%]"
             } ${
@@ -294,7 +294,8 @@ function TrialLetter({
             <div
               className={`letter-compose-columns flex w-full gap-1 ${
                 layer.composeShape === "oval-bottom" ||
-                layer.composeShape === "taper-bottom"
+                layer.composeShape === "taper-bottom" ||
+                layer.composeShape === "taper-heave"
                   ? "h-full"
                   : "h-[80%]"
               }`}
@@ -306,7 +307,6 @@ function TrialLetter({
                 ref={leftRef}
                 id="trial-message-left"
                 value={messageLeft}
-                maxLength={MAX_COLUMN_LENGTH}
                 readOnly={!canWrite}
                 onChange={(event) => handleLeftChange(event.target.value)}
                 onKeyDown={handleLeftKeyDown}
@@ -320,15 +320,10 @@ function TrialLetter({
                 ref={rightRef}
                 id="trial-message-right"
                 value={messageRight}
-                maxLength={MAX_COLUMN_LENGTH}
                 readOnly={!canWrite}
                 onChange={(event) => handleRightChange(event.target.value)}
                 onKeyDown={handleRightKeyDown}
-                placeholder={
-                  messageLeft.length >= MAX_COLUMN_LENGTH
-                    ? "Continue here..."
-                    : ""
-                }
+                placeholder="Continue here..."
                 className={textareaClassName}
               />
             </div>

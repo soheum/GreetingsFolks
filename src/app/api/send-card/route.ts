@@ -5,7 +5,6 @@ import type { Attachment } from "resend";
 import { cardEmailImage, closedEnvelopeImage } from "@/lib/card-images";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
-const MAX_MESSAGE_LENGTH = 600;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SENDABLE_CARD_IMAGES = new Set([
   "/images/flat_1.webp",
@@ -17,6 +16,7 @@ const SENDABLE_CARD_IMAGES = new Set([
   "/images/flat_7.webp",
   "/images/flat_8.webp",
   "/images/flat_9.webp",
+  "/images/flat_10.webp",
 ]);
 
 export const runtime = "nodejs";
@@ -27,12 +27,19 @@ type SendCardPayload = {
   cardTitle?: unknown;
   cardImage?: unknown;
   refNumber?: unknown;
+  serviceClass?: unknown;
 };
+
+type ServiceClass = "first" | "second";
 
 const REF_NUMBER_PATTERN = /^#[A-F0-9]{10}$/;
 
 function isSendCardPayload(value: unknown): value is SendCardPayload {
   return value !== null && typeof value === "object";
+}
+
+function parseServiceClass(value: unknown): ServiceClass {
+  return value === "second" ? "second" : "first";
 }
 
 function escapeHtml(value: string) {
@@ -101,8 +108,13 @@ async function buildCardAttachments(cardImage: string) {
   ]);
 }
 
-function getLinkDelay() {
-  return process.env.CARD_LINK_DELAY ?? "in 24 hours";
+function getDeliveryWindow(serviceClass: ServiceClass) {
+  return serviceClass === "first" ? "1-2" : "3-5";
+}
+
+function getLinkDelay(serviceClass: ServiceClass) {
+  // Temporary short delays for testing; swap to real post times later.
+  return serviceClass === "first" ? "in 1 min" : "in 2 min";
 }
 
 function generateRefNumber() {
@@ -118,7 +130,9 @@ function parseRefNumber(value: unknown) {
   return REF_NUMBER_PATTERN.test(normalized) ? normalized : null;
 }
 
-function buildConfirmationEmail() {
+function buildConfirmationEmail(serviceClass: ServiceClass) {
+  const deliveryWindow = getDeliveryWindow(serviceClass);
+
   return `
     <!doctype html>
     <html>
@@ -133,7 +147,7 @@ function buildConfirmationEmail() {
                 <tr>
                   <td align="center" style="text-align:center;">
                     <img src="cid:gf-envelope" alt="Envelope" width="360" style="display:block;margin:0 auto 32px;width:360px;max-width:88%;height:auto;border:0;" />
-                    <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:18px;line-height:1.5;font-weight:500;color:#222222;">Your envelope is on the way<br />and will arrive in 2 days.</p>
+                    <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:18px;line-height:1.5;font-weight:500;color:#222222;">Your card has been posted and will arrive in ${deliveryWindow} working days.<br />Thank you for choosing GREETINGS FOLKs</p>
                     <a href="#" style="display:inline-block;box-sizing:border-box;min-width:144px;background:#ec0000;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;text-transform:uppercase;color:#ffffff;">More details</a>
                   </td>
                 </tr>
@@ -211,6 +225,17 @@ function getSiteOrigin(request: Request) {
     return configuredOrigin.replace(/\/$/, "");
   }
 
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost?.split(",")[0]?.trim() || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol =
+    forwardedProto ||
+    (host?.includes("localhost") || host?.startsWith("127.") ? "http" : "https");
+
+  if (host) {
+    return `${protocol}://${host}`;
+  }
+
   return new URL(request.url).origin;
 }
 
@@ -249,16 +274,14 @@ export async function POST(request: Request) {
     typeof json.cardTitle === "string" ? json.cardTitle.trim() : "";
   const cardImage =
     typeof json.cardImage === "string" ? json.cardImage.trim() : "";
+  const serviceClass = parseServiceClass(json.serviceClass);
 
   if (!EMAIL_PATTERN.test(recipientEmail)) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
-  if (!message || message.length > MAX_MESSAGE_LENGTH) {
-    return Response.json(
-      { error: `Write a message up to ${MAX_MESSAGE_LENGTH} characters.` },
-      { status: 400 },
-    );
+  if (!message) {
+    return Response.json({ error: "Write a message before sending." }, { status: 400 });
   }
 
   if (!cardTitle || !SENDABLE_CARD_IMAGES.has(cardImage)) {
@@ -268,7 +291,7 @@ export async function POST(request: Request) {
   const siteOrigin = getSiteOrigin(request);
   const token = crypto.randomUUID().replaceAll("-", "");
   const refNumber = parseRefNumber(json.refNumber) ?? generateRefNumber();
-  const linkDelay = getLinkDelay();
+  const linkDelay = getLinkDelay(serviceClass);
   const cardUrl = `${siteOrigin}/card/${token}`;
   const supabase = createSupabaseAdmin();
 
@@ -296,7 +319,7 @@ export async function POST(request: Request) {
       from: fromEmail,
       to: recipientEmail,
       subject: "Keep an eye on the letterbox – a card’s on its way.",
-      html: buildConfirmationEmail(),
+      html: buildConfirmationEmail(serviceClass),
       attachments: confirmationAttachments,
     });
 
@@ -333,5 +356,6 @@ export async function POST(request: Request) {
   return Response.json({
     confirmationId: confirmationData?.id,
     scheduledId: scheduledData?.id,
+    cardUrl,
   });
 }

@@ -13,6 +13,9 @@ export type Locale = "en" | "ko";
 
 type UiMessages = {
   ourService: string;
+  ourServiceTitle: string;
+  ourServiceIntro: string;
+  ourServiceBody: string[];
   viewDetails: string;
   sendCard: string;
   send: string;
@@ -38,6 +41,22 @@ type UiMessages = {
 const UI: Record<Locale, UiMessages> = {
   en: {
     ourService: "OUR SERVICE",
+    ourServiceTitle: "Greetings folks,",
+    ourServiceIntro:
+"This letter first started in England and gave luck to the recipients around the world, and now this inspired GREETINGS FOLKs to start an online letter service.",
+    ourServiceBody: [
+      "GREETINGS FOLKs was founded by a graphic designer whose years in London deepened her appreciation for Korea's timeless beauty. What began as a stationery brand officially came to a close on 3 April 2026, but we’d like to return the love and warmth that we’ve received from so many people.",
+      "Our first project is with SohHeum Hwang who is a London-based UI·UX designer.",
+      "",
+      "How It Works",
+      "Only 40 letters are sent each day, and anyone can send one free of charge.",
+      "Choose a card with a beautiful story based on Korean heritage, write your words, and send it by First Class (1–2 days) or Second Class (3–5 days). It will arrive by email.",
+      "Once sent, a letter cannot be cancelled and can only be opened by its recipient.",
+      "I hope your sincerity reaches someone precious to you.",
+      "May your heartfelt message reach them",
+      "With warmest hearts",
+      "SohHeum Hwang & GREETINGS FOLKs",
+    ],
     viewDetails: "View details",
     sendCard: "Send card",
     send: "Send",
@@ -63,6 +82,23 @@ const UI: Record<Locale, UiMessages> = {
   },
   ko: {
     ourService: "서비스 소개",
+    ourServiceTitle: "친애하는 당신에게,",
+    ourServiceIntro:
+      "이 편지는 영국에서 최초로 시작되어 일 년에 한 바퀴를 돌면서 받는 사람에게 행운을 전하던 행운의 편지 이야기에서 영감을 받아 시작한 GREETINGS FOLKs의 온라인 편지 서비스입니다.",
+    ourServiceBody: [
+      "런던에서 그래픽 디자이너로 활동하며 아름다운 마음이 담긴 옛것을 사랑하는 마음으로 시작한 문구 브랜드 GREETINGS FOLKs는 2026년 4월 3일 공식적인 판매를 마쳤지만 브랜드를 아껴주던 마음을 보답하고자 새로운 방식으로 이어가고 싶었습니다.",
+      "우리의 첫 번째 프로젝트는 런던을 기반으로 활동하는 UI·UX 디자이너 황소흠남과 함께합니다.",
+      "",
+      "이용 방법",
+      "매일 단 40통만 전해지는 특별한 편지이며 누구나 무료로 편지를 쓰고 보낼 수 있습니다.",
+      "아름다운 의미가 담긴 카드를 고른 뒤 편지를 작성하면, 익일특급 (1–2일) 또는 일반 배송(3–5일)으로 이메일로 전해집니다.",
+      "한 번 보낸 편지는 취소할 수 없으며, 오직 받는 사람만 열어 읽을 수 있습니다.",
+      "",
+      "",
+      "당신의 진심이 소중한 누군가에게 닿기를 바랍니다.",
+      "행복하길 바라는 마음을 가득 담아,",
+      "황소흠 & GREETINGS FOLKs",
+    ],
     viewDetails: "자세히 보기",
     sendCard: "카드 보내기",
     send: "보내기",
@@ -70,13 +106,13 @@ const UI: Record<Locale, UiMessages> = {
     pickAnother: "다른 카드 고르기",
     sendReply: "답장 보내기",
     serviceType: "배송 옵션:",
-    serviceFirst: "1종 (영업일 1–2일)",
-    serviceSecond: "2종 (영업일 3–5일)",
+    serviceFirst: "익익특급 (영업일 1–2일)",
+    serviceSecond: "일반우편 (영업일 3–5일)",
     recipient: "받는 사람",
     recipientEmail: "받는 사람 이메일",
     sender: "보내는 사람",
     yourName: "보내는 사람 이름",
-    writeLetterPlaceholder: "편지를 작성해 주세요...",
+    writeLetterPlaceholder: "여기에 편지를 적으세요",
     openLetterHint: "편지를 클릭하면 카드가 열립니다",
     footerAbout:
       "GREETINGS FOLKs는 옛것의 아름다운 마음이 깃든 생활품에서 영감을 받아 현대적인 라이프스타일로 재해석한 문구 브랜드입니다.",
@@ -92,61 +128,75 @@ type EnvelopeCopy = {
   title: string;
   subtitle: string;
   description: string;
+  descriptionNote?: string;
 };
+
+const CHOCHUNGDO_NOTE_KO =
+  "초충도(草蟲圖)*는 신사임당의 그림으로, ‘풀과 벌레의 그림’이라 불리며 자연의 작은 생명들을 섬세하게 담아냅니다.";
 
 const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
   "Full Moon Dalhangari": {
-    title: "보름달 달항아리",
-    subtitle: "풍요로운 복이 늘 함께하기를",
+    title: "둥근 달 항아리",
+    subtitle: "넉넉한 복이 항상 곁에 깃들길",
     description:
-      "한국의 단아한 아름다움에서 영감을 받아, 진심을 담아 전하는 카드입니다.",
+      "당신의 진심을 담아 전할 수 있는 고요한 한국의 미를 담은 카드",
   },
   Strawberry: {
-    title: "산딸기",
-    subtitle: "일상의 순간마다 행복이 함께하기를",
+    title: "딸기",
+    subtitle: "행복한 일이 이어지길",
     description:
-      "초충도(草蟲圖)*의 산딸기에서 영감을 받은 카드로, 풍요·장수·번영을 상징합니다.",
+      "풍요와 장수, 번영의 의미를 담은 초충도의 산딸기에서 영감을 받은 카드",
+    descriptionNote: CHOCHUNGDO_NOTE_KO,
   },
-  "Birthday Guardian": {
-    title: "생일의 수호",
-    subtitle: "당신의 생일을 지키는 수호자",
-    description: "신비로운 백호가 전하는 진심 어린 생일 카드입니다.",
+  "Birthday Guard": {
+    title: "생일 수호",
+    subtitle: "새로운 한해를 지켜줄 생일의 수호",
+    description:
+      "영험한 힘을 지닌 백호의 사랑스런 생일 수호 메세지가 담긴 생일 카드",
   },
   "Letter Sijeonji": {
-    title: "편지 시전지",
-    subtitle: "행복이 가득 담긴",
+    title: "시전지 편지지",
+    subtitle: "행복을 담아",
     description:
-      "조선 시대에 사랑받던 목판 인쇄 편지지, 시전지를 재해석한 편지 카드입니다.",
+      "조선시대 유행한 목판화 ‘시전지’를 현대적으로 재해석한 편지지",
   },
   "Heave-ho!": {
-    title: "힘차게!",
-    subtitle: "건강과 풍요와 함께",
+    title: "영차! 고슴도치와 영지버섯",
+    subtitle: "오래도록 건강하고 풍요롭길",
     description:
-      "장수를 상징하는 영지버섯을 짊어진 고슴도치가 등장하는 사랑스러운 카드입니다.",
+      "가을이 되어 불로장생을 상징하는 영지버섯을 나르는 고슴도치를 담은 귀여운 카드",
   },
   "Blue Night Flowers": {
-    title: "푸른 밤꽃",
-    subtitle: "풍요로운 복이 함께하기를",
+    title: "푸른 이파람",
+    subtitle: "풍요로운 복이 함께 하길",
     description:
-      "초충도*의 저녁 꽃에서 영감을 받은 카드로, 성공·행운·풍요를 상징합니다.",
+      "성공과 복 그리고 풍요를 담은 초충도의 꽃이 밤에 아름답게 핀 카드",
+    descriptionNote: CHOCHUNGDO_NOTE_KO,
   },
   "Jade Rabbit's Easter": {
-    title: "옥토끼의 부활절",
-    subtitle: "큰 행복과 함께",
+    title: "옥토끼가 전해주는 부활절",
+    subtitle: "큰 행복과 기쁨이 함께 하길",
     description:
-      "계수나무 아래서 춤추는 옥토끼들이 이번 부활절에 희망을 전합니다.",
+      "계수나무 아래 희망을 상징하는 옥토끼 춤추며 전하는 부활절 카드",
   },
   "Shin Saimdang's Garden": {
-    title: "신사임당의 정원",
-    subtitle: "풍성한 축복이 함께하기를",
+    title: "신사임당의 가든",
+    subtitle: "출세와 다산, 풍요로운 복이 함께 하길",
     description:
-      "초충도*에서 영감을 받은 조선풍 식물 카드로, 피어나는 번영을 담았습니다.",
+      "초충도에서 영감을 받아 복이 피어나길 바라는 마음을 담은 조선시대 풍의 보타니컬 카드",
+    descriptionNote: CHOCHUNGDO_NOTE_KO,
   },
-  "Swallow sijeonji": {
-    title: "제비 시전지",
-    subtitle: "반가운 소식과 함께",
+  "Swallow Sijeonji": {
+    title: "제비와 시전지",
+    subtitle: "반가운 소식을 담아",
     description:
-      "제비가 전하는 기쁜 소식과 조선 시대 목판 편지지 시전지를 담은 카드입니다.",
+      "제비가 전해주는 좋은소식과 조선시대 유행한 목판화 ‘시전지’",
+  },
+  "Winter Pinetree": {
+    title: "겨울 소나무",
+    subtitle: "사철 푸른 행복",
+    description:
+      "일월오봉도의 소나무와 눈 덮인 달 아래 장난치는 토끼를 담은 카드",
   },
 };
 
@@ -158,6 +208,7 @@ type LocaleContextValue = {
     title: string;
     subtitle: string;
     description: string;
+    descriptionNote?: string;
   }) => EnvelopeCopy;
 };
 
@@ -186,6 +237,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
           title: envelope.title,
           subtitle: envelope.subtitle,
           description: envelope.description,
+          descriptionNote: envelope.descriptionNote,
         };
       },
     }),

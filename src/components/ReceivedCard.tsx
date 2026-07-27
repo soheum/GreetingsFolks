@@ -20,6 +20,13 @@ const FRAME_MS = 600;
 const ZOOM_MS = 1300;
 const FLAP_MS = 1400;
 const LETTER_FLIP_MS = 3000;
+const LETTER_TRI_FOLD_MS = 3600;
+const LETTER_LIFT_SETTLE_MS = 2400;
+const LETTER_LIFT_ROTATE_SETTLE_MS = 2800;
+const LETTER_LIFT_ROTATE_RIGHT_MS = 2800;
+const LETTER_LIFT_ROTATE_FLIP_MS = 4200;
+const LETTER_RIGHT_FLAP_OPEN_MS = 1400;
+const LETTER_LEFT_FLAP_OPEN_MS = 1400;
 
 /** Match PostcardStack letter sizing while writing */
 const LETTER_SIZE_MULTIPLIER = 1.125;
@@ -156,12 +163,36 @@ function ReceiveLetter({
   const topPercent = layer.topPercent ?? 50;
   const hasBack = Boolean(layer.backSrc && layer.backWidth && layer.backHeight);
   const usesLiftSettle = layer.letterOpenMotion === "lift-settle";
-  const usesLiftRotateSettle = layer.letterOpenMotion === "lift-rotate-settle";
+  const usesLiftRotateSettle =
+    layer.letterOpenMotion === "lift-rotate-settle" ||
+    layer.letterOpenMotion === "lift-rotate-flip";
+  const usesLiftRotateFlip =
+    layer.letterOpenMotion === "lift-rotate-flip" && hasBack;
+  const usesLiftRotateRight = layer.letterOpenMotion === "lift-rotate-right";
   const usesFoldOpen =
     layer.letterOpenMotion === "fold-open" &&
     Boolean(layer.insideSrc && layer.insideWidth && layer.insideHeight);
-  const composeOnFront =
-    !hasBack || usesLiftSettle || usesLiftRotateSettle || usesFoldOpen;
+  const usesTriFoldOpen =
+    layer.letterOpenMotion === "tri-fold-open" &&
+    Boolean(
+      layer.insideLeftSrc &&
+        layer.insideLeftWidth &&
+        layer.insideLeftHeight &&
+        layer.insideRightSrc &&
+        layer.insideRightWidth &&
+        layer.insideRightHeight &&
+        layer.insideSrc &&
+        layer.insideWidth &&
+        layer.insideHeight,
+    );
+  const composeOnFront = usesLiftRotateFlip
+    ? false
+    : !hasBack ||
+      usesLiftSettle ||
+      usesLiftRotateSettle ||
+      usesLiftRotateRight ||
+      usesFoldOpen ||
+      usesTriFoldOpen;
   const backSrc = layer.backSrc;
   const backWidth = layer.backWidth;
   const backHeight = layer.backHeight;
@@ -176,20 +207,24 @@ function ReceiveLetter({
       ? "letter-compose--oval-bottom"
       : layer.composeShape === "taper-bottom"
         ? "letter-compose--taper-bottom"
-        : (layer.composeInset ?? "inset-[8%_8%_9%]");
+        : layer.composeShape === "taper-heave"
+          ? "letter-compose--taper-heave"
+          : (layer.composeInset ?? "inset-[8%_8%_9%]");
   const composeColumnsClass =
     layer.composeShape === "oval-bottom"
       ? "letter-compose-columns flex h-full w-full gap-1"
       : isFoldSplit
-        ? "letter-compose-columns letter-compose-columns--fold-split flex h-full w-full flex-col"
-        : layer.composeShape === "taper-bottom"
+        ? "letter-compose-columns letter-compose-columns--fold-split flex min-h-0 w-full flex-1 flex-col"
+        : layer.composeShape === "taper-bottom" ||
+            layer.composeShape === "taper-heave"
           ? "letter-compose-columns flex h-full w-full gap-1"
           : isSingleColumn
             ? "letter-compose-columns flex h-[80%] w-full"
             : "letter-compose-columns flex h-[80%] w-full gap-1";
   const usesShapedCompose =
     layer.composeShape === "oval-bottom" ||
-    layer.composeShape === "taper-bottom";
+    layer.composeShape === "taper-bottom" ||
+    layer.composeShape === "taper-heave";
 
   if (mode === "pocketed") {
     return (
@@ -222,6 +257,18 @@ function ReceiveLetter({
       ? "letter-compose letter-compose--ready"
       : "letter-compose letter-compose--visible";
 
+  const composeTextStyle =
+    layer.composeLineHeight != null || layer.composeFontSize
+      ? ({
+          ...(layer.composeLineHeight != null
+            ? { "--text-letter--line-height": String(layer.composeLineHeight) }
+            : null),
+          ...(layer.composeFontSize
+            ? { "--text-letter": layer.composeFontSize }
+            : null),
+        } as CSSProperties)
+      : undefined;
+
   const messageFields = (
     <div
       className={`${composeClass} absolute ${composeInsetClass} flex flex-col px-[0%] ${
@@ -229,13 +276,7 @@ function ReceiveLetter({
           ? "justify-start pb-[0%] pt-[0%]"
           : "justify-end pb-[2%] pt-[10%]"
       }`}
-      style={
-        layer.composeLineHeight != null
-          ? ({
-              "--text-letter--line-height": String(layer.composeLineHeight),
-            } as CSSProperties)
-          : undefined
-      }
+      style={composeTextStyle}
     >
       <div className={composeColumnsClass}>
         {isSingleColumn ? (
@@ -257,6 +298,148 @@ function ReceiveLetter({
   );
 
   if (composeOnFront) {
+    if (
+      usesTriFoldOpen &&
+      layer.insideLeftSrc &&
+      layer.insideLeftWidth &&
+      layer.insideLeftHeight &&
+      layer.insideRightSrc &&
+      layer.insideRightWidth &&
+      layer.insideRightHeight &&
+      insideSrc &&
+      insideWidth &&
+      insideHeight
+    ) {
+      const done = mode === "flipped";
+      const leftW = layer.insideLeftWidth;
+      const rightW = layer.insideRightWidth;
+      const centerW = Math.max(insideWidth - leftW - rightW, 1);
+      const leftPct = (leftW / insideWidth) * 100;
+      const centerPct = (centerW / insideWidth) * 100;
+      const rightPct = (rightW / insideWidth) * 100;
+      const openWidthPercent = Math.min(
+        letterWidthPercent(layer) * (insideWidth / layer.width),
+        98,
+      );
+      return (
+        <div
+          className={`letter-tri-fold-scene absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
+            done ? "letter-tri-fold-scene--done letter-flip-scene--elevated" : ""
+          }`}
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              "--tri-closed-width": `${letterWidthPercent(layer)}%`,
+              "--tri-open-width": `${openWidthPercent}%`,
+              "--tri-closed-aspect": `${layer.width} / ${layer.height}`,
+              "--tri-open-aspect": `${insideWidth} / ${insideHeight}`,
+              "--tri-left-pct": `${leftPct}%`,
+              "--tri-center-pct": `${centerPct}%`,
+              "--tri-right-pct": `${rightPct}%`,
+              width: "var(--tri-closed-width)",
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          <div className="letter-tri-fold-mover">
+            <div className="letter-tri-fold-spread">
+              {layer.insideMidSrc &&
+              layer.insideMidWidth &&
+              layer.insideMidHeight ? (
+                <div className="letter-tri-fold-mid">
+                  <Image
+                    src={layer.insideMidSrc}
+                    alt=""
+                    aria-hidden
+                    width={layer.insideMidWidth}
+                    height={layer.insideMidHeight}
+                    priority
+                    className="h-auto w-full"
+                  />
+                </div>
+              ) : null}
+
+              <div className="letter-tri-fold-center">
+                <div className="letter-tri-fold-center-art">
+                  <Image
+                    src={insideSrc}
+                    alt=""
+                    aria-hidden
+                    width={insideWidth}
+                    height={insideHeight}
+                    priority
+                    className="letter-tri-fold-center-image"
+                    style={
+                      {
+                        width: `${(insideWidth / centerW) * 100}%`,
+                        marginLeft: `${(-leftW / centerW) * 100}%`,
+                      } as CSSProperties
+                    }
+                  />
+                </div>
+                {messageFields}
+              </div>
+
+              <div className="letter-tri-fold-left">
+                <div className="letter-tri-fold-left-inner">
+                  <Image
+                    src={layer.insideLeftSrc}
+                    alt=""
+                    aria-hidden
+                    width={leftW}
+                    height={layer.insideLeftHeight}
+                    priority
+                    className="h-auto w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="letter-tri-fold-right">
+                <div className="letter-tri-fold-right-inner">
+                  <div className="letter-tri-fold-right-face letter-tri-fold-right-face--inside">
+                    <Image
+                      src={layer.insideRightSrc}
+                      alt=""
+                      aria-hidden
+                      width={rightW}
+                      height={layer.insideRightHeight}
+                      priority
+                      className="h-auto w-full"
+                    />
+                  </div>
+                  <div className="letter-tri-fold-right-face letter-tri-fold-right-face--outside">
+                    <Image
+                      src={layer.src}
+                      alt=""
+                      aria-hidden
+                      width={layer.width}
+                      height={layer.height}
+                      priority
+                      className="h-auto w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="letter-tri-fold-closed">
+                <Image
+                  src={layer.src}
+                  alt=""
+                  aria-hidden
+                  width={layer.width}
+                  height={layer.height}
+                  priority
+                  className="h-auto w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (usesFoldOpen && insideSrc && insideWidth && insideHeight) {
       const done = mode === "flipped";
       return (
@@ -307,12 +490,74 @@ function ReceiveLetter({
       );
     }
 
-    if (usesLiftRotateSettle) {
+    if (usesLiftRotateRight) {
       const sceneClass =
         mode === "flipped"
           ? "letter-flip-scene--elevated"
-          : "letter-lift-rotate-settle-scene";
-      const doneClass = mode === "flipped" ? " letter-lift-rotate-settle-card--done" : "";
+          : "letter-lift-rotate-right-scene";
+      const doneClass =
+        mode === "flipped" ? " letter-lift-rotate-right-card--done" : "";
+
+      return (
+        <div
+          className={`${sceneClass}${doneClass} absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0`}
+          style={
+            {
+              "--letter-top": `${topPercent}%`,
+              "--letter-z-base": layer.zIndex,
+              "--letter-z-top": 50,
+              "--letter-open-scale": 1,
+              width: `${letterWidthPercent(layer)}%`,
+              transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
+            } as CSSProperties
+          }
+        >
+          <div className="letter-lift-rotate-right-mover">
+            <div className="letter-lift-rotate-right-spin">
+              <div className="relative block h-auto w-full">
+                <Image
+                  src={layer.src}
+                  alt=""
+                  aria-hidden
+                  width={layer.width}
+                  height={layer.height}
+                  priority
+                  className="h-auto w-full"
+                />
+              </div>
+            </div>
+            <div
+              className="letter-lift-rotate-right-compose-frame"
+              style={
+                {
+                  "--letter-w": layer.width,
+                  "--letter-h": layer.height,
+                } as CSSProperties
+              }
+            >
+              {messageFields}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (usesLiftRotateSettle) {
+      const sceneClass =
+        mode === "flipped"
+          ? `letter-flip-scene--elevated${
+              usesLiftRotateFlip ? " letter-lift-rotate-settle-scene--flip" : ""
+            }`
+          : `letter-lift-rotate-settle-scene${
+              usesLiftRotateFlip ? " letter-lift-rotate-settle-scene--flip" : ""
+            }`;
+      const doneClass =
+        mode === "flipped" ? " letter-lift-rotate-settle-card--done" : "";
+      const flipCardClass = usesLiftRotateFlip
+        ? mode === "flipped"
+          ? "letter-lift-rotate-flip-card letter-lift-rotate-flip-card--done"
+          : "letter-lift-rotate-flip-card"
+        : "relative block h-auto w-full";
 
       return (
         <div
@@ -330,17 +575,39 @@ function ReceiveLetter({
         >
           <div className="letter-lift-rotate-settle-mover">
             <div className="letter-lift-rotate-settle-spin">
-              <div className="relative block h-auto w-full">
-                <Image
-                  src={layer.src}
-                  alt=""
-                  aria-hidden
-                  width={layer.width}
-                  height={layer.height}
-                  priority
-                  className="h-auto w-full"
-                />
-                {messageFields}
+              <div className={flipCardClass}>
+                <div
+                  className={
+                    usesLiftRotateFlip
+                      ? "letter-flip-face relative block h-auto w-full"
+                      : "relative block h-auto w-full"
+                  }
+                >
+                  <Image
+                    src={layer.src}
+                    alt=""
+                    aria-hidden
+                    width={layer.width}
+                    height={layer.height}
+                    priority
+                    className="h-auto w-full"
+                  />
+                  {composeOnFront ? messageFields : null}
+                </div>
+                {usesLiftRotateFlip && backSrc && backWidth && backHeight ? (
+                  <div className="letter-flip-face letter-flip-face--back block h-auto w-full">
+                    <Image
+                      src={backSrc}
+                      alt=""
+                      aria-hidden
+                      width={backWidth}
+                      height={backHeight}
+                      priority
+                      className="h-auto w-full"
+                    />
+                    {messageFields}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -349,10 +616,31 @@ function ReceiveLetter({
     }
 
     if (usesLiftSettle) {
+      const opensRightFlap = Boolean(
+        layer.outsideRightSrc &&
+          layer.outsideRightWidth &&
+          layer.outsideRightHeight &&
+          layer.insideRightSrc &&
+          layer.insideRightWidth &&
+          layer.insideRightHeight,
+      );
+      const opensLeftFlap = Boolean(
+        layer.outsideLeftSrc &&
+          layer.outsideLeftWidth &&
+          layer.outsideLeftHeight &&
+          layer.insideLeftSrc &&
+          layer.insideLeftWidth &&
+          layer.insideLeftHeight,
+      );
+      const opensSideFlaps = opensRightFlap || opensLeftFlap;
       const sceneClass =
         mode === "flipped"
-          ? "letter-flip-scene--elevated"
-          : "letter-lift-settle-scene";
+          ? `letter-flip-scene--elevated${
+              opensSideFlaps ? " letter-lift-settle-scene--side-flaps" : ""
+            }`
+          : `letter-lift-settle-scene${
+              opensSideFlaps ? " letter-lift-settle-scene--side-flaps" : ""
+            }`;
       const cardClass =
         mode === "flipped"
           ? "letter-lift-settle-card letter-lift-settle-card--done block h-auto w-full"
@@ -373,7 +661,20 @@ function ReceiveLetter({
           }
         >
           <div className={cardClass}>
-            <div className="relative block h-auto w-full">
+            <div
+              className={
+                layer.outsideLeftSrc || layer.outsideRightSrc
+                  ? "letter-closed-stack"
+                  : "relative block h-auto w-full"
+              }
+              style={
+                layer.outsideLeftSrc || layer.outsideRightSrc
+                  ? ({
+                      "--letter-stack-aspect": `${layer.width} / ${layer.height}`,
+                    } as CSSProperties)
+                  : undefined
+              }
+            >
               <Image
                 src={layer.src}
                 alt=""
@@ -381,9 +682,93 @@ function ReceiveLetter({
                 width={layer.width}
                 height={layer.height}
                 priority
-                className="h-auto w-full"
+                className={
+                  layer.outsideLeftSrc || layer.outsideRightSrc
+                    ? "letter-closed-stack__layer letter-closed-stack__center"
+                    : "h-auto w-full"
+                }
               />
               {messageFields}
+              {opensLeftFlap ? (
+                <div className="letter-left-flap">
+                  <div className="letter-left-flap-inner">
+                    <div className="letter-left-flap-face letter-left-flap-face--outside">
+                      <Image
+                        src={layer.outsideLeftSrc!}
+                        alt=""
+                        aria-hidden
+                        width={layer.outsideLeftWidth}
+                        height={layer.outsideLeftHeight}
+                        priority
+                        className="letter-side-flap-image"
+                      />
+                    </div>
+                    <div className="letter-left-flap-face letter-left-flap-face--inside">
+                      <Image
+                        src={layer.insideLeftSrc!}
+                        alt=""
+                        aria-hidden
+                        width={layer.insideLeftWidth}
+                        height={layer.insideLeftHeight}
+                        priority
+                        className="letter-side-flap-image"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : layer.outsideLeftSrc &&
+                layer.outsideLeftWidth &&
+                layer.outsideLeftHeight ? (
+                <Image
+                  src={layer.outsideLeftSrc}
+                  alt=""
+                  aria-hidden
+                  width={layer.outsideLeftWidth}
+                  height={layer.outsideLeftHeight}
+                  priority
+                  className="letter-closed-stack__layer letter-closed-stack__left"
+                />
+              ) : null}
+              {opensRightFlap ? (
+                <div className="letter-right-flap">
+                  <div className="letter-right-flap-inner">
+                    <div className="letter-right-flap-face letter-right-flap-face--outside">
+                      <Image
+                        src={layer.outsideRightSrc!}
+                        alt=""
+                        aria-hidden
+                        width={layer.outsideRightWidth}
+                        height={layer.outsideRightHeight}
+                        priority
+                        className="letter-side-flap-image"
+                      />
+                    </div>
+                    <div className="letter-right-flap-face letter-right-flap-face--inside">
+                      <Image
+                        src={layer.insideRightSrc!}
+                        alt=""
+                        aria-hidden
+                        width={layer.insideRightWidth}
+                        height={layer.insideRightHeight}
+                        priority
+                        className="letter-side-flap-image"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : layer.outsideRightSrc &&
+                layer.outsideRightWidth &&
+                layer.outsideRightHeight ? (
+                <Image
+                  src={layer.outsideRightSrc}
+                  alt=""
+                  aria-hidden
+                  width={layer.outsideRightWidth}
+                  height={layer.outsideRightHeight}
+                  priority
+                  className="letter-closed-stack__layer letter-closed-stack__right"
+                />
+              ) : null}
             </div>
           </div>
         </div>
@@ -527,6 +912,7 @@ function ReceiveEnvelopeOpen({
     title: envelope.title,
     subtitle: envelope.subtitle,
     description: envelope.description,
+    descriptionNote: envelope.descriptionNote,
   });
   const fillLayer = layers.find((layer) => layer.anchor === "fill")!;
   const letterLayer = layers.find((layer) => layer.anchor === "center")!;
@@ -814,9 +1200,39 @@ export function ReceivedCard({
     t += FLAP_MS;
     schedule(() => setStage("opening-letter"), t);
 
-    t += LETTER_FLIP_MS;
+    const letterOpenMs =
+      letterLayer.letterOpenMotion === "tri-fold-open"
+        ? LETTER_TRI_FOLD_MS
+        : letterLayer.letterOpenMotion === "fold-open"
+          ? 6000
+          : letterLayer.letterOpenMotion === "lift-settle"
+            ? LETTER_LIFT_SETTLE_MS +
+              (letterLayer.outsideRightSrc && letterLayer.insideRightSrc
+                ? LETTER_RIGHT_FLAP_OPEN_MS
+                : 0) +
+              (letterLayer.outsideLeftSrc && letterLayer.insideLeftSrc
+                ? LETTER_LEFT_FLAP_OPEN_MS
+                : 0)
+            : letterLayer.letterOpenMotion === "lift-rotate-flip"
+              ? LETTER_LIFT_ROTATE_FLIP_MS
+              : letterLayer.letterOpenMotion === "lift-rotate-settle"
+                ? LETTER_LIFT_ROTATE_SETTLE_MS
+                : letterLayer.letterOpenMotion === "lift-rotate-right"
+                  ? LETTER_LIFT_ROTATE_RIGHT_MS
+                  : LETTER_FLIP_MS;
+    t += letterOpenMs;
     schedule(() => setStage("reading"), t);
-  }, [stage, fallDone, clearTimers, schedule]);
+  }, [
+    stage,
+    fallDone,
+    clearTimers,
+    schedule,
+    letterLayer.letterOpenMotion,
+    letterLayer.outsideRightSrc,
+    letterLayer.insideRightSrc,
+    letterLayer.outsideLeftSrc,
+    letterLayer.insideLeftSrc,
+  ]);
 
   if (stage === "landing") {
     return (
