@@ -1141,6 +1141,7 @@ export function ReceivedCard({
   const letterBtnRef = useRef<HTMLButtonElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const fallSrc = postFallImage(cardImage);
+  const letterLayer = envelope.layers?.find((layer) => layer.anchor === "center");
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach((id) => clearTimeout(id));
@@ -1201,11 +1202,11 @@ export function ReceivedCard({
     schedule(() => setStage("opening-letter"), t);
 
     const letterOpenMs =
-      letterLayer.letterOpenMotion === "tri-fold-open"
+      letterLayer?.letterOpenMotion === "tri-fold-open"
         ? LETTER_TRI_FOLD_MS
-        : letterLayer.letterOpenMotion === "fold-open"
+        : letterLayer?.letterOpenMotion === "fold-open"
           ? 6000
-          : letterLayer.letterOpenMotion === "lift-settle"
+          : letterLayer?.letterOpenMotion === "lift-settle"
             ? LETTER_LIFT_SETTLE_MS +
               (letterLayer.outsideRightSrc && letterLayer.insideRightSrc
                 ? LETTER_RIGHT_FLAP_OPEN_MS
@@ -1213,11 +1214,11 @@ export function ReceivedCard({
               (letterLayer.outsideLeftSrc && letterLayer.insideLeftSrc
                 ? LETTER_LEFT_FLAP_OPEN_MS
                 : 0)
-            : letterLayer.letterOpenMotion === "lift-rotate-flip"
+            : letterLayer?.letterOpenMotion === "lift-rotate-flip"
               ? LETTER_LIFT_ROTATE_FLIP_MS
-              : letterLayer.letterOpenMotion === "lift-rotate-settle"
+              : letterLayer?.letterOpenMotion === "lift-rotate-settle"
                 ? LETTER_LIFT_ROTATE_SETTLE_MS
-                : letterLayer.letterOpenMotion === "lift-rotate-right"
+                : letterLayer?.letterOpenMotion === "lift-rotate-right"
                   ? LETTER_LIFT_ROTATE_RIGHT_MS
                   : LETTER_FLIP_MS;
     t += letterOpenMs;
@@ -1227,11 +1228,7 @@ export function ReceivedCard({
     fallDone,
     clearTimers,
     schedule,
-    letterLayer.letterOpenMotion,
-    letterLayer.outsideRightSrc,
-    letterLayer.insideRightSrc,
-    letterLayer.outsideLeftSrc,
-    letterLayer.insideLeftSrc,
+    letterLayer,
   ]);
 
   if (stage === "landing") {
