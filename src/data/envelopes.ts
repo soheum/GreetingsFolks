@@ -201,15 +201,15 @@ export const ENVELOPES: readonly Envelope[] = [
       },
       {
         src: "/images/flat_1_letter.webp",
-        width: 1814,
-        height: 1225,
+        width: 1702,
+        height: 1138,
         anchor: "center",
         zIndex: 5,
         widthPercent: 82,
         topPercent: 72,
         backSrc: "/images/flat_1_letter_back.webp",
-        backWidth: 1702,
-        backHeight: 1138,
+        backWidth: 1814,
+        backHeight: 1225,
       },
       {
         src: "/images/flat_1_bottom.webp",
@@ -604,7 +604,7 @@ export const ENVELOPES: readonly Envelope[] = [
         anchor: "center",
         zIndex: 5,
         widthPercent: 80,
-        topPercent: 68,
+        topPercent: 72,
         letterOpenMotion: "lift-rotate-right",
         composeLayout: "single",
         /* Upright write area on landscape letter: inset-[top_right_bottom_left] */

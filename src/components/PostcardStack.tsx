@@ -42,6 +42,10 @@ const LETTER_LIFT_ROTATE_SETTLE_MS = 2800;
 const LETTER_LIFT_ROTATE_RIGHT_MS = 2800;
 const LETTER_LIFT_ROTATE_FLIP_MS = 4200;
 const LETTER_FOLD_OPEN_MS = 6000;
+/** flat_4 / flat_5: fold the opened letter shut before insert */
+const LETTER_FOLD_CLOSE_MS = 1000;
+/** Beat after fold shut before dropping into the envelope */
+const LETTER_FOLD_CLOSE_PAUSE_MS = 700;
 const LETTER_TRI_FOLD_OPEN_MS = 3600;
 const LETTER_INSERT_LIFT_MS = 1200;
 const LETTER_INSERT_FLIP_MS = 800;
@@ -64,6 +68,18 @@ const BACK_PEEK_LETTER_TOP_NUDGE = 20;
 const BACK_PEEK_LETTER_SCALE = 1.05;
 /** Pause after last Sender keystroke before revealing the stamp */
 const STAMP_REVEAL_IDLE_MS = 1200;
+/** Default address fields on the envelope back */
+const ADDRESS_FORM_LEFT = 4;
+const ADDRESS_FORM_TOP = 8;
+const ADDRESS_FORM_WIDTH = 52;
+/** flat_9 / flat_10 — taller/narrower backs; tweak these independently */
+const ADDRESS_FORM_LEFT_TALL = 6;
+const ADDRESS_FORM_TOP_TALL = 14;
+const ADDRESS_FORM_WIDTH_TALL = 70;
+/** Shift flat_9 / flat_10 back art (+ address layer) down; % of envelope height */
+const BACK_FACE_Y_OFFSET_TALL = 6;
+/** Shift flat_4 / flat_5 back art (+ address layer) down; % of envelope height */
+const BACK_FACE_Y_OFFSET_FOLD = 6;
 const CAROUSEL_LOOP_COPIES = 3;
 const CAROUSEL_CENTER_COPY = 1;
 /** Wait for the carousel slide to settle, then a short beat, before opening the flap */
@@ -166,6 +182,11 @@ function letterComposesOnFront(layer: EnvelopeLayer) {
 /** Front-compose letters that still need a mid insert step (reorient), not a Y-flip */
 function letterNeedsInsertReorient(layer: EnvelopeLayer) {
   return letterUsesLiftRotateSettle(layer) || letterUsesLiftRotateRight(layer);
+}
+
+/** Fold letters need a close step before dropping into the envelope */
+function letterNeedsFoldClose(layer: EnvelopeLayer) {
+  return letterUsesFoldOpen(layer);
 }
 
 function letterOpenRevealMs(layer: EnvelopeLayer) {
@@ -625,9 +646,14 @@ function LetterFlipLayer({
   const isInserting = insertStep !== null;
   const showComposeMessage =
     isSendable &&
-    (composeStage === "writing" ||
-      composeStage === "closing-lift" ||
-      composeStage === "closing-flip");
+    composeStage === "writing"
+      ? true
+      : isSendable &&
+        !usesFoldOpen &&
+        (composeStage === "closing-lift" ||
+          composeStage === "closing-flip" ||
+          // flat_9: keep text on the letter through the reorient + drop
+          (usesLiftRotateRight && composeStage === "closing-insert"));
   const leftValue = messageLeft ?? "";
   const rightValue = messageRight ?? "";
   const textareaClassName = isFoldSplit
@@ -1143,7 +1169,12 @@ function LetterFlipLayer({
     }
 
     if (usesFoldOpen && insideSrc && insideWidth && insideHeight) {
-      if (isInserting) {
+      const isFoldClosing =
+        insertStep === "lift" || insertStep === "flip";
+      const isFoldInsertDrop =
+        insertStep === "insert" || insertStep === "done";
+
+      if (isFoldInsertDrop) {
         return (
           <div
             className={`letter-insert-scene letter-insert-scene--${insertStep} absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0`}
@@ -1162,20 +1193,14 @@ function LetterFlipLayer({
             >
               <div className="relative block h-auto w-full">
                 <Image
-                  src={insideSrc}
+                  src={layer.src}
                   alt=""
                   aria-hidden
-                  width={insideWidth}
-                  height={insideHeight}
+                  width={layer.width}
+                  height={layer.height}
                   priority={priority}
                   className="h-auto w-full"
                 />
-                <div
-                  className={composeClassName}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {composeFields}
-                </div>
               </div>
             </div>
           </div>
@@ -1184,12 +1209,17 @@ function LetterFlipLayer({
 
       return (
         <div
-          className="letter-fold-open-scene absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0"
+          className={`letter-fold-open-scene absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0${
+            isFoldClosing
+              ? ` letter-fold-open-scene--closing letter-fold-open-scene--${insertStep}`
+              : ""
+          }`}
           style={
             {
               "--letter-top": `${topPercent}%`,
               "--letter-z-base": layer.zIndex,
               "--letter-z-top": 50,
+              "--letter-fold-close-duration": `${LETTER_FOLD_CLOSE_MS}ms`,
               width: `${letterWidthPercent(layer)}%`,
               transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
             } as CSSProperties
@@ -1271,22 +1301,22 @@ function LetterFlipLayer({
                   className="h-auto w-full"
                 />
               </div>
-            </div>
-            {/* Landscape frame matches rotated letter; compose inset is relative to that */}
-            <div
-              className="letter-lift-rotate-right-compose-frame"
-              style={
-                {
-                  "--letter-w": layer.width,
-                  "--letter-h": layer.height,
-                } as CSSProperties
-              }
-            >
+              {/* Landscape write frame inside spin (−90°): opens/closes with the letter */}
               <div
-                className={composeClassName}
-                onClick={(event) => event.stopPropagation()}
+                className="letter-lift-rotate-right-compose-frame"
+                style={
+                  {
+                    "--letter-w": layer.width,
+                    "--letter-h": layer.height,
+                  } as CSSProperties
+                }
               >
-                {composeFields}
+                <div
+                  className={composeClassName}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {composeFields}
+                </div>
               </div>
             </div>
           </div>
@@ -1722,6 +1752,11 @@ function EnvelopeVisual({
     envelope.topFlap?.bottomInsideSrc &&
       envelope.topFlap.bottomInsideWidth &&
       envelope.topFlap.bottomInsideHeight &&
+      // flat_1 also uses backSrc as the sealed base — stacking both looks washed/transparent
+      !(
+        supportsCarouselFlapOpen &&
+        envelope.layers?.some((layer) => layer.src.includes("/flat_1.webp"))
+      ) &&
       (isZoomedEnvelope ||
         isSealedCarousel ||
         (supportsCarouselFlapOpen &&
@@ -1755,10 +1790,40 @@ function EnvelopeVisual({
   );
   const showBackPeekLetter =
     Boolean(letterLayer) &&
+    (letterLayer.src.includes("/flat_7_") ||
+      letterLayer.src.includes("/flat_8_")) &&
     (composeStage === "flipping-back" ||
       composeStage === "addressing" ||
       composeStage === "sending" ||
       composeStage === "success");
+  const stampSrc = envelope.layers?.some(
+    (layer) =>
+      layer.src.includes("/flat_1.webp") || layer.src.includes("/flat_2.webp"),
+  )
+    ? "/images/stamp_white.webp"
+    : "/images/stamp.webp";
+  const usesTallAddressForm = envelope.layers?.some(
+    (layer) =>
+      layer.src.includes("/flat_9.webp") || layer.src.includes("/flat_10.webp"),
+  );
+  const usesFoldBackOffset = envelope.layers?.some(
+    (layer) =>
+      layer.src.includes("/flat_4.webp") || layer.src.includes("/flat_5.webp"),
+  );
+  const backFaceYOffset = usesTallAddressForm
+    ? BACK_FACE_Y_OFFSET_TALL
+    : usesFoldBackOffset
+      ? BACK_FACE_Y_OFFSET_FOLD
+      : 0;
+  const addressFormLeft = usesTallAddressForm
+    ? ADDRESS_FORM_LEFT_TALL
+    : ADDRESS_FORM_LEFT;
+  const addressFormTop = usesTallAddressForm
+    ? ADDRESS_FORM_TOP_TALL
+    : ADDRESS_FORM_TOP;
+  const addressFormWidth = usesTallAddressForm
+    ? ADDRESS_FORM_WIDTH_TALL
+    : ADDRESS_FORM_WIDTH;
   const addressForm = isAddressing ? (
     <form
       id="recipient-address-form"
@@ -1770,10 +1835,20 @@ function EnvelopeVisual({
         className={`${
           hasBackFace ? "absolute bottom-0 left-0 w-full" : "absolute inset-0"
         }`}
-        style={hasBackFace ? { height: backImageHeightPercent } : undefined}
+        style={
+          hasBackFace
+            ? {
+                height: backImageHeightPercent,
+                transform:
+                  backFaceYOffset > 0
+                    ? `translateY(${backFaceYOffset}%)`
+                    : undefined,
+              }
+            : undefined
+        }
       >
         <Image
-          src="/images/stamp.webp"
+          src={stampSrc}
           alt=""
           aria-hidden
           width={160}
@@ -1782,7 +1857,14 @@ function EnvelopeVisual({
             showStamp ? "opacity-100" : "opacity-0"
           }`}
         />
-        <div className="absolute left-[4%] top-[8%] w-[52%] rounded-md bg-white px-[3.5%] py-[2.5%] shadow-[0_12px_30px_rgba(0,0,0,0.1)]">
+        <div
+          className="absolute rounded-md bg-white px-[3.5%] py-[2.5%] shadow-[0_12px_30px_rgba(0,0,0,0.1)]"
+          style={{
+            left: `${addressFormLeft}%`,
+            top: `${addressFormTop}%`,
+            width: `${addressFormWidth}%`,
+          }}
+        >
           <div className="flex flex-col">
             <p className="text-label text-[#ec0000]">{t.recipient}</p>
             <label htmlFor="recipient-email" className="sr-only">
@@ -2023,13 +2105,25 @@ function EnvelopeVisual({
                 width={envelope.topFlap!.backWidth!}
                 height={envelope.topFlap!.backHeight!}
                 priority={priority}
-                style={{ zIndex: 0 }}
+                style={{
+                  zIndex: 0,
+                  transform:
+                    backFaceYOffset > 0
+                      ? `translateY(${backFaceYOffset}%)`
+                      : undefined,
+                }}
                 className="pointer-events-none absolute bottom-2 left-0 z-0 h-auto w-full"
               />
               {showBackPeekLetter && letterLayer ? (
                 <div
                   className="pointer-events-none absolute bottom-2 left-0 z-10 w-full opacity-20"
-                  style={{ height: backImageHeightPercent }}
+                  style={{
+                    height: backImageHeightPercent,
+                    transform:
+                      backFaceYOffset > 0
+                        ? `translateY(${backFaceYOffset}%)`
+                        : undefined,
+                  }}
                 >
                   <Image
                     src={letterLayer.src}
@@ -2282,14 +2376,26 @@ export function PostcardStack() {
     const letterLayer = zoomedEnvelope
       ? envelopeLetterLayer(zoomedEnvelope)
       : undefined;
+    const needsFoldClose = Boolean(
+      letterLayer && letterNeedsFoldClose(letterLayer),
+    );
     const skipLetterFlip = Boolean(
       letterLayer &&
         letterComposesOnFront(letterLayer) &&
-        !letterNeedsInsertReorient(letterLayer),
+        !letterNeedsInsertReorient(letterLayer) &&
+        !needsFoldClose,
     );
-    const insertFlipDelay = skipLetterFlip ? 0 : LETTER_INSERT_FLIP_MS;
+    const insertFlipDelay = skipLetterFlip
+      ? 0
+      : needsFoldClose
+        ? LETTER_FOLD_CLOSE_MS
+        : LETTER_INSERT_FLIP_MS;
+    const foldClosePause = needsFoldClose ? LETTER_FOLD_CLOSE_PAUSE_MS : 0;
     const insertTotalMs =
-      LETTER_INSERT_LIFT_MS + insertFlipDelay + LETTER_INSERT_DROP_MS;
+      LETTER_INSERT_LIFT_MS +
+      insertFlipDelay +
+      foldClosePause +
+      LETTER_INSERT_DROP_MS;
 
     setComposeStage("closing-lift");
 
@@ -2304,7 +2410,7 @@ export function PostcardStack() {
 
       scheduleAction(() => {
         setComposeStage("closing-insert");
-      }, LETTER_INSERT_LIFT_MS + LETTER_INSERT_FLIP_MS);
+      }, LETTER_INSERT_LIFT_MS + insertFlipDelay + foldClosePause);
     }
 
     if (zoomedEnvelope?.topFlap) {

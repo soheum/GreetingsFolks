@@ -1029,26 +1029,29 @@ function ReceiveEnvelopeOpen({
 
             {isSealed ? (
               <>
-                <div
-                  className="pointer-events-none absolute left-1/2 top-[var(--letter-top)] z-[70] opacity-20"
-                  style={
-                    {
-                      "--letter-top": `${Math.min((letterLayer.topPercent ?? 50) + SEALED_LETTER_TOP_NUDGE, 88)}%`,
-                      width: `${letterWidthPercent(letterLayer)}%`,
-                      transform: `translate(-50%, -50%) rotate(${letterLayer.rotate ?? 0}deg)`,
-                    } as CSSProperties
-                  }
-                >
-                  <Image
-                    src={letterLayer.src}
-                    alt=""
-                    aria-hidden
-                    width={letterLayer.width}
-                    height={letterLayer.height}
-                    priority
-                    className="h-auto w-full"
-                  />
-                </div>
+                {letterLayer.src.includes("/flat_7_") ||
+                letterLayer.src.includes("/flat_8_") ? (
+                  <div
+                    className="pointer-events-none absolute left-1/2 top-[var(--letter-top)] z-[70] opacity-20"
+                    style={
+                      {
+                        "--letter-top": `${Math.min((letterLayer.topPercent ?? 50) + SEALED_LETTER_TOP_NUDGE, 88)}%`,
+                        width: `${letterWidthPercent(letterLayer)}%`,
+                        transform: `translate(-50%, -50%) rotate(${letterLayer.rotate ?? 0}deg)`,
+                      } as CSSProperties
+                    }
+                  >
+                    <Image
+                      src={letterLayer.src}
+                      alt=""
+                      aria-hidden
+                      width={letterLayer.width}
+                      height={letterLayer.height}
+                      priority
+                      className="h-auto w-full"
+                    />
+                  </div>
+                ) : null}
                 {/* Same closed-flap 3D as ReceiveTopFlap so seal position matches */}
                 <div
                   className="pointer-events-none absolute left-1/2 z-[80]"

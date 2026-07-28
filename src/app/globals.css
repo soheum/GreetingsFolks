@@ -828,7 +828,9 @@ body.envelope-zoom-active footer {
     var(--letter-lift-rotate-right-easing) forwards;
 }
 
-/* Text field stays screen-upright in a frame sized to the rotated (landscape) letter */
+/* Landscape write frame inside the spin (−90° vs letter portrait).
+   Open: spin 0→90° so text turns with the letter into upright landscape.
+   Send: spin 90→0° so text turns with the letter back into the envelope. */
 .letter-lift-rotate-right-compose-frame {
   position: absolute;
   top: 50%;
@@ -837,7 +839,8 @@ body.envelope-zoom-active footer {
   /* Layout letter is portrait (w×h); after 90° CW visual size is h×w */
   width: calc(100% * var(--letter-h) / var(--letter-w));
   height: 100%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center center;
   pointer-events: none;
 }
 
@@ -857,8 +860,9 @@ body.envelope-zoom-active footer {
   transform: rotate(90deg);
 }
 
+/* Appear as the spin starts (~38% of 2800ms) so text rotates with the letter */
 .letter-lift-rotate-right-scene .letter-compose--ready {
-  animation-delay: 2100ms;
+  animation-delay: 1000ms;
 }
 
 .letter-lift-rotate-right-mover--lift {
@@ -1078,6 +1082,8 @@ body.envelope-zoom-active footer {
   position: relative;
   overflow: hidden;
   min-height: 0;
+  /* Font size (cqw) measures the letter card, not the inset write box */
+  container-type: inline-size;
 }
 
 .letter-fold-open-scene .letter-compose--ready {
@@ -1103,6 +1109,47 @@ body.envelope-zoom-active footer {
 .letter-fold-open-card--done .letter-fold-opened {
   grid-template-rows: 1fr;
   opacity: 1;
+}
+
+/* flat_4 / flat_5: fold shut on Send before insert */
+.letter-fold-open-scene--closing {
+  z-index: var(--letter-z-top, 50);
+}
+
+.letter-fold-open-scene--closing .letter-fold-open-mover,
+.letter-fold-open-scene--closing .letter-fold-closed,
+.letter-fold-open-scene--closing .letter-fold-opened {
+  animation: none;
+}
+
+.letter-fold-open-scene--closing.letter-fold-open-scene--lift .letter-fold-open-mover {
+  transform: translateY(-40%);
+}
+
+.letter-fold-open-scene--closing.letter-fold-open-scene--lift .letter-fold-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.letter-fold-open-scene--closing.letter-fold-open-scene--lift .letter-fold-opened {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.letter-fold-open-scene--closing.letter-fold-open-scene--flip .letter-fold-open-mover {
+  transform: translateY(-40%);
+}
+
+.letter-fold-open-scene--closing.letter-fold-open-scene--flip .letter-fold-closed {
+  animation: letter-fold-closed-enter
+    var(--letter-fold-close-duration, 1000ms)
+    var(--letter-fold-open-easing) forwards;
+}
+
+.letter-fold-open-scene--closing.letter-fold-open-scene--flip .letter-fold-opened {
+  animation: letter-fold-opened-exit
+    var(--letter-fold-close-duration, 1000ms)
+    var(--letter-fold-open-easing) forwards;
 }
 
 /* flat_10: physical tri-fold — left + right flaps open together */
@@ -1502,13 +1549,15 @@ body.envelope-zoom-active footer {
 }
 
 /* flat_5 open inside: floral oval write area (full ellipse — not flat_6 lantern).
-   Side inset + radius pull text off the flowers; padding keeps glyphs inside. */
+   Side inset + radius pull text off the flowers; padding keeps glyphs inside.
+   container-type: normal so 4.7cqw matches flat_4 (letter card width). */
 .letter-compose--taper-bottom {
   inset: 8% 15% 10% 15%;
   border-radius: 50% / 28%;
   overflow: hidden;
   padding: 7% 11% 9% 11%;
   box-sizing: border-box;
+  container-type: normal;
 }
 
 .letter-compose--taper-bottom .letter-compose-columns {
@@ -1534,6 +1583,7 @@ body.envelope-zoom-active footer {
   padding: 4% 6% 5% 6%;
   box-sizing: border-box;
   z-index: 3;
+  container-type: normal;
 }
 
 .letter-compose--taper-heave .letter-compose-columns {
@@ -1654,7 +1704,8 @@ body.envelope-zoom-active footer {
 
 .letter-insert-scene--lift,
 .letter-insert-scene--flip {
-  z-index: 8;
+  /* Stay above the pocket (bottom ~10) while reorienting; drop only on insert */
+  z-index: var(--letter-z-top, 50);
 }
 
 .letter-insert-scene--insert,
@@ -2363,6 +2414,30 @@ body.envelope-zoom-active footer {
   100% {
     grid-template-rows: 1fr;
     opacity: 1;
+  }
+}
+
+@keyframes letter-fold-closed-enter {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+@keyframes letter-fold-opened-exit {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
   }
 }
 
