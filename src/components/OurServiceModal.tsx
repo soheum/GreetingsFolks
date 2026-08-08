@@ -193,16 +193,16 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
               </div>
             </div>
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center overflow-hidden">
               <Image
                 src="/images/type_3.png"
                 alt=""
                 aria-hidden
-                width={1920}
-                height={1378}
+                width={3016}
+                height={1282}
                 priority
-                className="h-auto w-[90vw] max-w-none translate-y-[48%]"
-                sizes="70vw"
+                className="h-auto w-[min(92vw,56rem)] max-w-none translate-y-[22%]"
+                sizes="(max-width: 768px) 92vw, 56rem"
               />
             </div>
           </div>

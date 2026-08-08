@@ -10,6 +10,7 @@ import {
   type CSSProperties,
 } from "react";
 import { Button } from "./Button";
+import { ViewDetailsModal } from "./ViewDetailsModal";
 import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
 import { postFallImage } from "@/lib/card-images";
 import { useLocale } from "@/lib/locale";
@@ -89,6 +90,13 @@ function ReceiveTopFlap({
 }) {
   const widthPercent = flap.widthPercent ?? 100;
   const topPercent = flap.topPercent ?? 0;
+  // Match PostcardStack flat_10 seam (same inset sealed + open)
+  const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
+  const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
+  // flat_2: no open flap art — hide the whole flap once open
+  if (isFlat2Flap && mode === "open") {
+    return null;
+  }
   const showInside = mode === "open";
 
   const modeClass =
@@ -103,7 +111,7 @@ function ReceiveTopFlap({
       className={`envelope-top-flap ${modeClass} pointer-events-none absolute left-1/2 top-[var(--top-flap-top)]`}
       style={
         {
-          "--top-flap-top": `${topPercent}%`,
+          "--top-flap-top": matchesFlat10Back ? "5cqh" : `${topPercent}%`,
           width: `${widthPercent}%`,
           aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
           transform: "translateX(-50%)",
@@ -122,30 +130,32 @@ function ReceiveTopFlap({
             className="envelope-top-flap-face h-auto w-full"
           />
         ) : null}
-        <div className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full">
-          <Image
-            src={flap.outsideSrc}
-            alt=""
-            aria-hidden
-            width={flap.outsideWidth}
-            height={flap.outsideHeight}
-            priority
-            className="h-auto w-full"
-          />
-          {/* While sealed, sticker is rendered as a top overlay so letter can sit under it */}
-          {mode !== "closed" ? (
+        {/* Drop outside once fully open — sealed/opening still need it for the fold */}
+        {mode !== "open" ? (
+          <div className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full">
             <Image
-              src="/images/sticker.webp"
+              src={flap.outsideSrc}
               alt=""
               aria-hidden
-              width={256}
-              height={256}
+              width={flap.outsideWidth}
+              height={flap.outsideHeight}
               priority
-              unoptimized
-              className="envelope-flap-sticker"
+              className="h-auto w-full"
             />
-          ) : null}
-        </div>
+            {mode !== "closed" ? (
+              <Image
+                src="/images/sticker.webp"
+                alt=""
+                aria-hidden
+                width={256}
+                height={256}
+                priority
+                unoptimized
+                className="envelope-flap-sticker"
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -297,7 +307,9 @@ function ReceiveLetter({
     </div>
   );
 
-  if (composeOnFront) {
+  // lift-rotate-flip composes on the back face (composeOnFront=false) but still
+  // needs the settle/flip scene — same path as PostcardStack flat_2.
+  if (composeOnFront || usesLiftRotateSettle || usesLiftRotateRight) {
     if (
       usesTriFoldOpen &&
       layer.insideLeftSrc &&
@@ -543,16 +555,15 @@ function ReceiveLetter({
     }
 
     if (usesLiftRotateSettle) {
-      const sceneClass =
-        mode === "flipped"
-          ? `letter-flip-scene--elevated${
-              usesLiftRotateFlip ? " letter-lift-rotate-settle-scene--flip" : ""
-            }`
-          : `letter-lift-rotate-settle-scene${
-              usesLiftRotateFlip ? " letter-lift-rotate-settle-scene--flip" : ""
-            }`;
+      // Keep settle-scene classes when reading so lift CSS vars stay applied;
+      // receive-center lowers from the elevated open pose to mid-frame.
+      const sceneClass = `letter-lift-rotate-settle-scene${
+        usesLiftRotateFlip ? " letter-lift-rotate-settle-scene--flip" : ""
+      }${mode === "flipped" ? " letter-flip-scene--elevated" : ""}`;
       const doneClass =
-        mode === "flipped" ? " letter-lift-rotate-settle-card--done" : "";
+        mode === "flipped"
+          ? " letter-lift-rotate-settle-card--receive-center"
+          : "";
       const flipCardClass = usesLiftRotateFlip
         ? mode === "flipped"
           ? "letter-lift-rotate-flip-card letter-lift-rotate-flip-card--done"
@@ -906,6 +917,7 @@ function ReceiveEnvelopeOpen({
   cardTitle: string;
 }) {
   const { t, envelopeCopy } = useLocale();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const layers = envelope.layers!;
   const flap = envelope.topFlap!;
   const copy = envelopeCopy({
@@ -924,7 +936,9 @@ function ReceiveEnvelopeOpen({
   const isSealed = flapMode === "closed";
   const baseReady = flapMode === "opening" || flapMode === "open";
   // Closed look = bottom + top_outside + sticker (not fill — fill fights the sealed flap)
-  const showFill = !isSealed;
+  // flat_10 open also skips fill so the seam stays on back + bottom
+  const showFill =
+    !isSealed && !fillLayer.src.includes("/flat_10.webp");
 
   const showBottomBar =
     stage === "framing" ||
@@ -975,7 +989,10 @@ function ReceiveEnvelopeOpen({
           role="img"
           aria-label={envelope.alt}
         >
-          <div className="receive-envelope-stack relative h-full w-full">
+          <div
+            className="receive-envelope-stack relative h-full w-full"
+            style={{ containerType: "size" }}
+          >
             {showFill ? (
               <Image
                 src={fillLayer.src}
@@ -1021,8 +1038,18 @@ function ReceiveEnvelopeOpen({
               width={bottomLayer.width}
               height={bottomLayer.height}
               priority
-              style={{ zIndex: bottomLayer.zIndex }}
-              className="pointer-events-none absolute bottom-0 left-0 h-auto w-full"
+              style={{
+                zIndex: bottomLayer.zIndex,
+                bottom: bottomLayer.src.includes("/flat_10_")
+                  ? "0cqh"
+                  : undefined,
+                transform: bottomLayer.src.includes("/flat_9_bottom")
+                  ? "translateX(1.5%)"
+                  : undefined,
+              }}
+              className={`pointer-events-none absolute left-0 h-auto w-full ${
+                bottomLayer.src.includes("/flat_10_") ? "" : "bottom-0"
+              }`}
             />
 
             <ReceiveTopFlap flap={flap} mode={flapMode} />
@@ -1057,7 +1084,9 @@ function ReceiveEnvelopeOpen({
                   className="pointer-events-none absolute left-1/2 z-[80]"
                   style={
                     {
-                      top: `${flap.topPercent ?? 0}%`,
+                      top: flap.outsideSrc.includes("/flat_10_")
+                        ? "5cqh"
+                        : `${flap.topPercent ?? 0}%`,
                       width: `${flap.widthPercent ?? 100}%`,
                       aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
                       transform: "translateX(-50%)",
@@ -1116,9 +1145,19 @@ function ReceiveEnvelopeOpen({
         }`}
         aria-hidden={!showBottomBar}
       >
-        <h2 className="truncate">{copy.title}</h2>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-eyebrow shrink-0">{t.yourLetter}</span>
+          <p className="min-w-0 truncate text-sm text-neutral-900">
+            {copy.title}
+          </p>
+          <p className="min-w-0 truncate text-sm text-neutral-500">
+            {copy.subtitle}
+          </p>
+        </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Button variant="outline">{t.viewDetails}</Button>
+          <Button variant="outline" onClick={() => setDetailsOpen(true)}>
+            {t.viewDetails}
+          </Button>
           <Button variant="primary" size="md" href="/">
             {t.sendReply}
             <span aria-hidden className="text-sm leading-none">
@@ -1127,6 +1166,12 @@ function ReceiveEnvelopeOpen({
           </Button>
         </div>
       </div>
+
+      <ViewDetailsModal
+        open={detailsOpen}
+        envelopeTitle={envelope.title}
+        onClose={() => setDetailsOpen(false)}
+      />
     </section>
   );
 }

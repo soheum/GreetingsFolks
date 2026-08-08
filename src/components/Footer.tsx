@@ -3,10 +3,10 @@ import Image from "next/image";
 export function Footer() {
   return (
     <footer className="bg-[#ffe8e8]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-14 md:gap-6 sm:py-16">
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-3 md:gap-8 lg:gap-12">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-14 sm:gap-5 sm:py-16 md:gap-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-4 lg:gap-6">
           <div className="order-2 flex flex-col items-center text-center md:order-1">
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-2">
               <p className="text-footer">
                 <span className="font-medium">GREETINGS FOLKs</span>는
                 <br />
@@ -33,13 +33,13 @@ export function Footer() {
               alt="Greetings Folks"
               width={484}
               height={182}
-              className="h-auto w-48 sm:w-56 md:w-64"
+              className="h-auto w-40 sm:w-48 md:w-56"
               priority
             />
           </div>
 
           <div className="order-3 flex flex-col items-center text-center">
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-2">
               <p className="text-footer">
                 <span className="font-medium">GREETINGS FOLKs</span> is
                 <br />
@@ -61,39 +61,54 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center gap-4 sm:gap-8 md:gap-12">
+        <p className="text-footer text-center">Collaborated with</p>
+
+        <div className="flex items-center justify-center gap-3 sm:gap-4 md:gap-6">
           <Image
             src="/images/logo_left.webp"
             alt=""
             aria-hidden
             width={444}
             height={366}
-            className="h-auto w-28 shrink-0 sm:w-40 md:w-52"
+            className="h-auto w-24 shrink-0 sm:w-36 md:w-44"
           />
-          <div className="min-w-0 space-y-1 text-center">
-            <p className="text-footer font-medium tracking-wide uppercase">
-              Designed by Soheum Hwang x Jihye Lee
-            </p>
-            <p className="text-footer">디자이너 황소흠 이지혜</p>
-            <p className="text-footer flex flex-wrap items-center justify-center gap-x-1 whitespace-nowrap">
-              <a
-                href="https://www.hijihyelee.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-opacity hover:opacity-70"
-              >
-                hijihyelee.com
-              </a>
-              <span aria-hidden>|</span>
-              <a
-                href="https://www.soheum.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-opacity hover:opacity-70"
-              >
-                soheum.com
-              </a>
-            </p>
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 text-center sm:grid-cols-2 sm:gap-5 md:gap-6">
+            <div className="mx-auto w-full max-w-[14rem] space-y-1 sm:max-w-[16rem]">
+              <p className="text-footer font-bold">
+                <a
+                  href="https://www.soheum.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-opacity hover:opacity-70"
+                >
+                  Soheum Hwang | 황소흠
+                </a>
+              </p>
+              <p className="text-footer">
+                Product designer based in London, and a strong believer that
+                creativity thrives at the intersection of contrasting values.
+              </p>
+              <p className="text-footer">런던에서 활동하고 있는 프로덕트 디자이너</p>
+            </div>
+            <div className="mx-auto w-full max-w-[14rem] space-y-1 sm:max-w-[16rem]">
+              <p className="text-footer font-bold">
+                <a
+                  href="https://greetingsfolks.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-opacity hover:opacity-70"
+                >
+                  Jihye Lee | 이지혜
+                </a>
+              </p>
+              <p className="text-footer">
+                Graphic designer, painter and founder of GREETINGS FOLKs.
+                Strategic thinking with creative heart.
+              </p>
+              <p className="text-footer">
+                그래픽 디자이너, 페인터 그리고 그리팅스 포크스
+              </p>
+            </div>
           </div>
           <Image
             src="/images/logo_right.webp"
@@ -101,7 +116,7 @@ export function Footer() {
             aria-hidden
             width={444}
             height={366}
-            className="h-auto w-28 shrink-0 sm:w-40 md:w-52"
+            className="h-auto w-24 shrink-0 sm:w-36 md:w-44"
           />
         </div>
       </div>

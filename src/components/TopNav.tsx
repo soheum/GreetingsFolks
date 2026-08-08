@@ -99,7 +99,7 @@ export function TopNav() {
               alt="Greetings Folks"
               width={484}
               height={182}
-              className="pointer-events-auto h-14 w-auto sm:h-16 md:h-16 lg:h-16 xl:h-24 2xl:h-28"
+              className="pointer-events-auto h-12 w-auto sm:h-14 md:h-14 lg:h-14 xl:h-20 2xl:h-24"
               priority
             />
           </div>
@@ -143,7 +143,7 @@ export function TopNav() {
                 alt="Greetings Folks"
                 width={484}
                 height={182}
-                className="h-14 w-auto"
+                className="h-12 w-auto"
                 priority
               />
               <button

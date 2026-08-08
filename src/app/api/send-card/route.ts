@@ -147,7 +147,7 @@ function buildConfirmationEmail(serviceClass: ServiceClass) {
                 <tr>
                   <td align="center" style="text-align:center;">
                     <img src="cid:gf-envelope" alt="Envelope" width="360" style="display:block;margin:0 auto 32px;width:360px;max-width:88%;height:auto;border:0;" />
-                    <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:18px;line-height:1.5;font-weight:500;color:#222222;">Your card has been posted and will arrive in ${deliveryWindow} working days.<br />Thank you for choosing GREETINGS FOLKs</p>
+                    <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5;font-weight:500;color:#222222;">Someone wrote you a letter and it's on its way. It should arrive in ${deliveryWindow} working days.</p>
                     <a href="#" style="display:inline-block;box-sizing:border-box;min-width:144px;background:#ec0000;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;text-transform:uppercase;color:#ffffff;">More details</a>
                   </td>
                 </tr>

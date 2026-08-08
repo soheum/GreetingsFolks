@@ -1,10 +1,38 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 import { Button } from "./Button";
 import { getViewDetailsCopy } from "@/data/view-details";
 import { useLocale } from "@/lib/locale";
+
+const BOJAGI_HREF =
+  "https://collections.vam.ac.uk/item/O1241357/wrapping-cloth/";
+
+/** Turn "bojagi" / "보자기" in body copy into external links. */
+function linkifyBojagi(text: string): ReactNode {
+  const parts = text.split(/(bojagi|보자기)/gi);
+  if (parts.length === 1) {
+    return text;
+  }
+
+  return parts.map((part, index) => {
+    if (/^(bojagi|보자기)$/i.test(part)) {
+      return (
+        <a
+          key={index}
+          href={BOJAGI_HREF}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline-offset-2 hover:underline"
+        >
+          {part}
+        </a>
+      );
+    }
+    return <Fragment key={index}>{part}</Fragment>;
+  });
+}
 
 type ViewDetailsModalProps = {
   open: boolean;
@@ -90,7 +118,7 @@ export function ViewDetailsModal({
         </Button>
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto overscroll-contain px-8 pt-14 pb-8 sm:px-10 sm:pt-16 sm:pb-10">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-8 pt-10 pb-8 sm:px-8 sm:pt-12 sm:pb-6">
             <div className="mx-auto flex max-w-md flex-col items-center text-center">
               <h2
                 id="view-details-title"
@@ -102,27 +130,59 @@ export function ViewDetailsModal({
 
               <div className="mt-6 space-y-3 leading-relaxed text-neutral-700 [&_p]:text-sm">
                 {copy.body.map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
+                  <p key={index}>{linkifyBojagi(paragraph)}</p>
                 ))}
               </div>
 
               {copy.imageSrc ? (
-                <div className="relative mt-8 aspect-square w-full max-w-xs overflow-hidden">
-                  <Image
-                    src={copy.imageSrc}
-                    alt={copy.imageCaption}
-                    fill
-                    className="object-cover"
-                    sizes="20rem"
-                  />
-                </div>
+                copy.imageHref ? (
+                  <a
+                    href={copy.imageHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative mt-8 block aspect-square w-full max-w-[10rem] overflow-hidden transition-opacity hover:opacity-90"
+                  >
+                    <Image
+                      src={copy.imageSrc}
+                      alt={copy.imageCaption}
+                      fill
+                      className="object-cover"
+                      sizes="20rem"
+                    />
+                  </a>
+                ) : (
+                  <div className="relative mt-8 aspect-square w-full max-w-[10rem] overflow-hidden">
+                    <Image
+                      src={copy.imageSrc}
+                      alt={copy.imageCaption}
+                      fill
+                      className="object-cover"
+                      sizes="20rem"
+                    />
+                  </div>
+                )
               ) : (
                 <div
                   aria-hidden
                   className="mt-8 aspect-square w-full max-w-xs border border-dashed border-neutral-300 bg-neutral-100/70"
                 />
               )}
-              <p className="mt-2 font-meta text-xs text-neutral-600">{copy.imageCaption} <br/> {copy.sourceCredit}</p>
+              <p className="mt-2 font-meta text-xs text-neutral-600">
+                {copy.imageHref ? (
+                  <a
+                    href={copy.imageHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold underline-offset-2 hover:underline"
+                  >
+                    {copy.imageCaption}
+                  </a>
+                ) : (
+                  <span className="font-bold">{copy.imageCaption}</span>
+                )}
+                <br />
+                {copy.sourceCredit}
+              </p>
 
               <div className="mt-8 space-y-1 text-neutral-600 [&_p]:text-sm">
                 <p className="font-medium text-neutral-800">

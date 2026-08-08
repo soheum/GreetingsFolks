@@ -355,7 +355,8 @@ body.envelope-zoom-active footer {
   .postcard-stack {
     --envelope-center-height: 65vh;
     --envelope-side-height: 36.5vh;
-    --carousel-chrome-offset: 10rem;
+    /* Match white panel md:min-h-36 (9rem) — was 10rem and left a gap */
+    --carousel-chrome-offset: 9rem;
   }
 }
 
@@ -567,7 +568,8 @@ body.envelope-zoom-active footer {
 .envelope-flap-sticker {
   position: absolute;
   left: 50%;
-  top: 72%;
+  /* Higher % = lower on the flap; tweak this for seal Y */
+  top: 86%;
   width: 22%;
   height: auto;
   transform: translate(-50%, -50%);
@@ -911,6 +913,8 @@ body.envelope-zoom-active footer {
 .letter-lift-rotate-settle-scene {
   --letter-lift-rotate-settle-duration: 2800ms;
   --letter-lift-rotate-settle-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Reading pose after elevated open (receive only); higher = more up */
+  --letter-lift-rotate-receive-settle: 50%;
   animation: letter-z-index-rise-rotate-settle
     var(--letter-lift-rotate-settle-duration)
     var(--letter-lift-rotate-settle-easing) forwards;
@@ -985,6 +989,23 @@ body.envelope-zoom-active footer {
 
 .letter-lift-rotate-settle-scene--flip .letter-compose--ready {
   animation-delay: 3200ms;
+}
+
+/* Receive reading: after elevated open, ease down so the upright letter
+   sits nearer the horizontal mid-line of the envelope. */
+.letter-lift-rotate-settle-card--receive-center .letter-lift-rotate-settle-mover {
+  animation: letter-lift-rotate-receive-lower 700ms
+    cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.letter-lift-rotate-settle-card--receive-center .letter-lift-rotate-settle-spin {
+  animation: none;
+  transform: rotate(90deg);
+}
+
+.letter-lift-rotate-settle-card--receive-center .letter-lift-rotate-flip-card {
+  animation: none;
+  transform: rotateY(180deg);
 }
 
 /* Insert (close) for flat_3 — same axis remap */
@@ -2236,6 +2257,16 @@ body.envelope-zoom-active footer {
 
   100% {
     transform: translateX(var(--letter-lift-rotate-lift, 72%));
+  }
+}
+
+@keyframes letter-lift-rotate-receive-lower {
+  from {
+    transform: translateX(var(--letter-lift-rotate-lift, 68%));
+  }
+
+  to {
+    transform: translateX(var(--letter-lift-rotate-receive-settle, 50%));
   }
 }
 

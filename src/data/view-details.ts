@@ -27,6 +27,56 @@ const VIEW_DETAILS_IMAGE: Partial<Record<string, string>> = {
   "Winter Pinetree": "/images/flat_10_more.webp",
 };
 
+const NMK_ENG = (relicId: string) =>
+  `https://www.museum.go.kr/ENG/contents/E0402000000.do?searchId=search&schM=view&relicId=${relicId}`;
+const NMK_KO = (relicId: string) =>
+  `https://www.museum.go.kr/MUSEUM/contents/M0502000000.do?schM=view&searchId=search&relicId=${relicId}`;
+
+const GOGUNG_IRWOROBONGDO =
+  "https://gogung.go.kr/gogung/pgm/psgudMng/view.do?psgudSn=363400&menuNo=800065&gubunCd=&pageIndex=988&searchClCd=&searchCondition=&searchKeyword=";
+
+/** Museum collection page for the reference image + caption, keyed by envelope.title. */
+const VIEW_DETAILS_IMAGE_HREF: Partial<
+  Record<string, Record<ViewDetailsLocale, string>>
+> = {
+  "Winter Pinetree": {
+    en: GOGUNG_IRWOROBONGDO,
+    ko: GOGUNG_IRWOROBONGDO,
+  },
+  "Birthday Guard": {
+    en: NMK_ENG("875"),
+    ko: NMK_KO("875"),
+  },
+  "Full Moon Dalhangari": {
+    en: NMK_ENG("941"),
+    ko: NMK_KO("941"),
+  },
+  Strawberry: {
+    en: NMK_ENG("2061"),
+    ko: NMK_KO("2061"),
+  },
+  "Blue Night Flowers": {
+    en: NMK_ENG("2061"),
+    ko: NMK_KO("2061"),
+  },
+  "Shin Saimdang's Garden": {
+    en: NMK_ENG("2061"),
+    ko: NMK_KO("2061"),
+  },
+  "Heave-ho!": {
+    en: NMK_KO("36553219"),
+    ko: NMK_KO("36553219"),
+  },
+  "Letter Sijeonji": {
+    en: `${NMK_KO("100098")}#`,
+    ko: `${NMK_KO("100098")}#`,
+  },
+  "Swallow Sijeonji": {
+    en: `${NMK_KO("100098")}#`,
+    ko: `${NMK_KO("100098")}#`,
+  },
+};
+
 /**
  * Long-form View details copy keyed by envelope.title.
  */
@@ -335,6 +385,7 @@ export const VIEW_DETAILS: Record<string, ViewDetailsEntry> = {
 
 export type ViewDetailsContent = ViewDetailsCopy & {
   imageSrc?: string;
+  imageHref?: string;
 };
 
 export function getViewDetailsCopy(
@@ -346,8 +397,10 @@ export function getViewDetailsCopy(
     return null;
   }
   const copy = entry[locale] ?? entry.en;
+  const hrefs = VIEW_DETAILS_IMAGE_HREF[envelopeTitle];
   return {
     ...copy,
     imageSrc: VIEW_DETAILS_IMAGE[envelopeTitle],
+    imageHref: hrefs?.[locale] ?? hrefs?.en,
   };
 }

@@ -12,7 +12,10 @@ const LETTER_SIZE_MULTIPLIER = 1.125;
 
 const FLAT_1_ENVELOPE = ENVELOPES.find(
   (envelope) =>
-    envelope.layers?.some((layer) => layer.src === "/images/flat_1.webp"),
+    envelope.layers?.some(
+      (layer) =>
+        layer.src.includes("/flat_1_") || layer.src.includes("/flat_1."),
+    ) || envelope.topFlap?.outsideSrc.includes("/flat_1_"),
 )!;
 
 type TrialStage = "idle" | "writing";

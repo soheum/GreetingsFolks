@@ -66,25 +66,32 @@ const LETTER_SIZE_MULTIPLIER = 1.125;
 const BACK_PEEK_LETTER_TOP_NUDGE = 20;
 /** Scale the address-side peek letter vs normal letter width (1.1 = 10% bigger) */
 const BACK_PEEK_LETTER_SCALE = 1.05;
-/** Pause after last Sender keystroke before revealing the stamp */
+/** Pause after last Recipient keystroke before revealing the stamp */
 const STAMP_REVEAL_IDLE_MS = 1200;
-/** Default address fields on the envelope back */
-const ADDRESS_FORM_LEFT = 4;
-const ADDRESS_FORM_TOP = 8;
+/** Recipient field on the envelope back (centered) */
 const ADDRESS_FORM_WIDTH = 52;
-/** flat_9 / flat_10 — taller/narrower backs; tweak these independently */
-const ADDRESS_FORM_LEFT_TALL = 6;
-const ADDRESS_FORM_TOP_TALL = 14;
+/** flat_9 / flat_10 — wider field on taller backs */
 const ADDRESS_FORM_WIDTH_TALL = 70;
 /** Shift flat_9 / flat_10 back art (+ address layer) down; % of envelope height */
 const BACK_FACE_Y_OFFSET_TALL = 6;
 /** Shift flat_4 / flat_5 back art (+ address layer) down; % of envelope height */
-const BACK_FACE_Y_OFFSET_FOLD = 6;
+const BACK_FACE_Y_OFFSET_FOLD = 16;
+/**
+ * flat_10 layer offsets (cqh so they scale with the card).
+ * Back/bottom sit on the card bottom (like other envelopes). Top flap is
+ * pushed down so it still seams with that lowered back.
+ */
+const FLAT_10_BACK_INSET = "0cqh";
+const FLAT_10_BOTTOM_INSET = FLAT_10_BACK_INSET;
+const FLAT_10_TOP_FLAP_TOP = "5cqh";
+/** flat_1_bottom position (centered slightly left of 50%) */
+const FLAT_1_BOTTOM_TRANSLATE_X = "-49.8%";
+const FLAT_1_BOTTOM_TRANSLATE_Y = "0%";
 const CAROUSEL_LOOP_COPIES = 3;
 const CAROUSEL_CENTER_COPY = 1;
 /** Wait for the carousel slide to settle, then a short beat, before opening the flap */
 const CAROUSEL_FLAP_PAUSE_MS = 400;
-/** Must match `.envelope-top-flap--opening` animation duration */
+/** Advance to `open` while the flap CSS animation is still running (keeps reveal snappy) */
 const CAROUSEL_FLAP_OPEN_MS = 100;
 
 function generateRefNumber() {
@@ -102,6 +109,13 @@ function addressingEnvelopeScale(envelope: Envelope) {
   const baseScale = envelope.zoomScale ?? LETTER_OPEN_SCALE;
 
   if (!letterLayer) {
+    return baseScale;
+  }
+
+  // Sideways letters use a small widthPercent for the open sheet; that must not
+  // shrink the envelope on the address side (flat_2 / flat_3 looked off-center).
+  const letterRotate = Math.abs(letterLayer.rotate ?? 0);
+  if (letterRotate === 90) {
     return baseScale;
   }
 
@@ -540,10 +554,23 @@ function wrapEnvelopeIndex(index: number) {
 }
 
 function envelopeImageSrc(envelope: Envelope) {
-  return (
+  const fillSrc =
     envelope.layers?.find((layer) => layer.anchor === "fill")?.src ??
     envelope.src ??
-    ""
+    "";
+  // flat_1 open fill uses bottom_inside; emails/API still key off flat_1.webp
+  if (fillSrc.includes("/flat_1_bottom_inside")) {
+    return "/images/flat_1.webp";
+  }
+  return fillSrc;
+}
+
+function isFlat1Envelope(envelope: Envelope) {
+  return Boolean(
+    envelope.layers?.some(
+      (layer) =>
+        layer.src.includes("/flat_1_") || layer.src.includes("/flat_1."),
+    ) || envelope.topFlap?.outsideSrc.includes("/flat_1_"),
   );
 }
 
@@ -1588,6 +1615,12 @@ function TopFlapLayer({
 }) {
   const widthPercent = flap.widthPercent ?? 100;
   const topPercent = flap.topPercent ?? 0;
+  const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
+  const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
+  // flat_2: no open flap art — hide the whole flap once open
+  if (isFlat2Flap && step === "open") {
+    return null;
+  }
 
   return (
     <div
@@ -1596,7 +1629,9 @@ function TopFlapLayer({
       } pointer-events-none absolute left-1/2 top-[var(--top-flap-top)]`}
       style={
         {
-          "--top-flap-top": `${topPercent}%`,
+          "--top-flap-top": matchesFlat10Back
+            ? FLAT_10_TOP_FLAP_TOP
+            : `${topPercent}%`,
           width: `${widthPercent}%`,
           aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
           transform: "translateX(-50%)",
@@ -1613,15 +1648,17 @@ function TopFlapLayer({
           priority={priority}
           className="envelope-top-flap-face h-auto w-full"
         />
-        <Image
-          src={flap.outsideSrc}
-          alt=""
-          aria-hidden
-          width={flap.outsideWidth}
-          height={flap.outsideHeight}
-          priority={priority}
-          className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full"
-        />
+        {step !== "open" ? (
+          <Image
+            src={flap.outsideSrc}
+            alt=""
+            aria-hidden
+            width={flap.outsideWidth}
+            height={flap.outsideHeight}
+            priority={priority}
+            className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full"
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -1634,18 +1671,19 @@ function EnvelopeVisual({
   onCarouselSelect,
   isZoomedEnvelope = false,
   isCarouselActive = false,
+  isLoopResetting = false,
   isClosing = false,
   isTopFlapCompositionReady = false,
   composeStage = null,
   messageLeft = "",
   messageRight = "",
-  recipientEmail = "",
   senderName = "",
+  recipientEmail = "",
   onMessageLeftChange,
   onMessageRightChange,
   onSendClick,
-  onRecipientEmailChange,
   onSenderNameChange,
+  onRecipientEmailChange,
   onAddressSubmit,
   onPreviousClick,
 }: {
@@ -1656,18 +1694,20 @@ function EnvelopeVisual({
   isZoomedEnvelope?: boolean;
   /** Home carousel: only the centered card is open with the letter visible */
   isCarouselActive?: boolean;
+  /** Infinite-loop remap: same card, new slot — don't replay flap/letter entrance */
+  isLoopResetting?: boolean;
   isClosing?: boolean;
   isTopFlapCompositionReady?: boolean;
   composeStage?: ComposeStage | null;
   messageLeft?: string;
   messageRight?: string;
-  recipientEmail?: string;
   senderName?: string;
+  recipientEmail?: string;
   onMessageLeftChange?: (message: string) => void;
   onMessageRightChange?: (message: string) => void;
   onSendClick?: () => void;
-  onRecipientEmailChange?: (email: string) => void;
   onSenderNameChange?: (name: string) => void;
+  onRecipientEmailChange?: (email: string) => void;
   onAddressSubmit?: (event: FormEvent<HTMLFormElement>) => void;
   onPreviousClick?: () => void;
 }) {
@@ -1679,20 +1719,19 @@ function EnvelopeVisual({
   const stampRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const bothFilled =
-      recipientEmail.trim().length > 0 && senderName.trim().length > 0;
+    const senderFilled = senderName.trim().length > 0;
 
     if (stampRevealTimerRef.current) {
       clearTimeout(stampRevealTimerRef.current);
       stampRevealTimerRef.current = null;
     }
 
-    if (!bothFilled) {
+    if (!senderFilled) {
       setShowStamp(false);
       return;
     }
 
-    // Reveal after Sender typing goes idle (can't know "done" exactly)
+    // Reveal after Sender typing goes idle
     stampRevealTimerRef.current = setTimeout(() => {
       setShowStamp(true);
       stampRevealTimerRef.current = null;
@@ -1704,11 +1743,13 @@ function EnvelopeVisual({
         stampRevealTimerRef.current = null;
       }
     };
-  }, [recipientEmail, senderName]);
+  }, [senderName]);
 
   const supportsCarouselFlapOpen = hasCarouselFlapReveal(envelope);
   const [carouselFlapStep, setCarouselFlapStep] =
     useState<TopFlapStep>("closed");
+  const carouselFlapSessionRef = useRef(false);
+  const [playLetterEntrance, setPlayLetterEntrance] = useState(true);
 
   useEffect(() => {
     if (isZoomedEnvelope || !supportsCarouselFlapOpen) {
@@ -1716,10 +1757,25 @@ function EnvelopeVisual({
     }
 
     if (!isCarouselActive) {
+      carouselFlapSessionRef.current = false;
+      setPlayLetterEntrance(true);
       setCarouselFlapStep("closed");
       return;
     }
 
+    if (carouselFlapSessionRef.current) {
+      return;
+    }
+    carouselFlapSessionRef.current = true;
+
+    // Loop remap: new DOM slot for the same card — snap open, no letter fade-in
+    if (isLoopResetting) {
+      setPlayLetterEntrance(false);
+      setCarouselFlapStep("open");
+      return;
+    }
+
+    setPlayLetterEntrance(true);
     setCarouselFlapStep("closed");
     const openTimer = setTimeout(() => {
       setCarouselFlapStep("opening");
@@ -1732,7 +1788,12 @@ function EnvelopeVisual({
       clearTimeout(openTimer);
       clearTimeout(openedTimer);
     };
-  }, [isCarouselActive, isZoomedEnvelope, supportsCarouselFlapOpen]);
+  }, [
+    isCarouselActive,
+    isLoopResetting,
+    isZoomedEnvelope,
+    supportsCarouselFlapOpen,
+  ]);
 
   const isSealedCarousel = !isZoomedEnvelope && !isCarouselActive;
   const topFlapStep =
@@ -1753,10 +1814,7 @@ function EnvelopeVisual({
       envelope.topFlap.bottomInsideWidth &&
       envelope.topFlap.bottomInsideHeight &&
       // flat_1 also uses backSrc as the sealed base — stacking both looks washed/transparent
-      !(
-        supportsCarouselFlapOpen &&
-        envelope.layers?.some((layer) => layer.src.includes("/flat_1.webp"))
-      ) &&
+      !(supportsCarouselFlapOpen && isFlat1Envelope(envelope)) &&
       (isZoomedEnvelope ||
         isSealedCarousel ||
         (supportsCarouselFlapOpen &&
@@ -1789,19 +1847,20 @@ function EnvelopeVisual({
     (layer) => layer.anchor === "center",
   );
   const showBackPeekLetter =
-    Boolean(letterLayer) &&
-    (letterLayer.src.includes("/flat_7_") ||
-      letterLayer.src.includes("/flat_8_")) &&
+    Boolean(
+      letterLayer &&
+        (letterLayer.src.includes("/flat_7_") ||
+          letterLayer.src.includes("/flat_8_")),
+    ) &&
     (composeStage === "flipping-back" ||
       composeStage === "addressing" ||
       composeStage === "sending" ||
       composeStage === "success");
-  const stampSrc = envelope.layers?.some(
-    (layer) =>
-      layer.src.includes("/flat_1.webp") || layer.src.includes("/flat_2.webp"),
-  )
-    ? "/images/stamp_white.webp"
-    : "/images/stamp.webp";
+  const stampSrc =
+    isFlat1Envelope(envelope) ||
+    envelope.layers?.some((layer) => layer.src.includes("/flat_2.webp"))
+      ? "/images/stamp_white.webp"
+      : "/images/stamp.webp";
   const usesTallAddressForm = envelope.layers?.some(
     (layer) =>
       layer.src.includes("/flat_9.webp") || layer.src.includes("/flat_10.webp"),
@@ -1815,12 +1874,6 @@ function EnvelopeVisual({
     : usesFoldBackOffset
       ? BACK_FACE_Y_OFFSET_FOLD
       : 0;
-  const addressFormLeft = usesTallAddressForm
-    ? ADDRESS_FORM_LEFT_TALL
-    : ADDRESS_FORM_LEFT;
-  const addressFormTop = usesTallAddressForm
-    ? ADDRESS_FORM_TOP_TALL
-    : ADDRESS_FORM_TOP;
   const addressFormWidth = usesTallAddressForm
     ? ADDRESS_FORM_WIDTH_TALL
     : ADDRESS_FORM_WIDTH;
@@ -1858,17 +1911,17 @@ function EnvelopeVisual({
           }`}
         />
         <div
-          className="absolute rounded-md bg-white px-[3.5%] py-[2.5%] shadow-[0_12px_30px_rgba(0,0,0,0.1)]"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-[2%] py-[1%]"
           style={{
-            left: `${addressFormLeft}%`,
-            top: `${addressFormTop}%`,
             width: `${addressFormWidth}%`,
           }}
         >
-          <div className="flex flex-col">
-            <p className="text-label text-[#ec0000]">{t.recipient}</p>
-            <label htmlFor="recipient-email" className="sr-only">
-              {t.recipientEmail}
+          <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+            <label
+              htmlFor="recipient-email"
+              className="shrink-0 text-[0.5rem] uppercase text-[#ec0000] [font-family:var(--font-meta)]"
+            >
+              {t.recipient}
             </label>
             <input
               id="recipient-email"
@@ -1880,30 +1933,29 @@ function EnvelopeVisual({
                 onRecipientEmailChange?.(event.target.value)
               }
               placeholder="friend@example.com"
-              className="text-letter mt-1 w-full border-0 bg-transparent text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60"
+              className="min-w-0 border-0 bg-transparent text-right text-[0.5rem] text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60 [font-family:var(--font-meta)]"
             />
-          </div>
-        </div>
-        <div className="absolute bottom-[8%] right-[4%] w-[52%] rounded-md bg-white px-[3.5%] py-[2%] shadow-[0_12px_30px_rgba(0,0,0,0.1)]">
-          <div className="flex flex-col">
-            <p className="text-label text-[#ec0000]">{t.sender}</p>
-            <label htmlFor="sender-name" className="sr-only">
+            <label
+              htmlFor="sender-name"
+              className="shrink-0 text-[0.5rem] uppercase text-[#ec0000] [font-family:var(--font-meta)]"
+            >
               {t.sender}
             </label>
             <input
               id="sender-name"
               type="text"
               required
+              autoComplete="name"
               value={senderName}
               disabled={composeStage === "sending"}
               onChange={(event) => onSenderNameChange?.(event.target.value)}
               onBlur={() => {
-                if (recipientEmail.trim() && senderName.trim()) {
+                if (senderName.trim()) {
                   setShowStamp(true);
                 }
               }}
               placeholder={t.yourName}
-              className="text-letter mt-1 w-full border-0 bg-transparent text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60"
+              className="min-w-0 border-0 bg-transparent text-right text-[0.5rem] text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60 [font-family:var(--font-meta)]"
             />
           </div>
         </div>
@@ -1950,8 +2002,17 @@ function EnvelopeVisual({
                 width={envelope.topFlap.backWidth!}
                 height={envelope.topFlap.backHeight!}
                 priority={priority}
-                style={{ zIndex: 0 }}
-                className="pointer-events-none absolute bottom-2 left-0 z-0 h-auto w-full"
+                style={{
+                  zIndex: 0,
+                  bottom: envelope.topFlap.backSrc.includes("/flat_10_")
+                    ? FLAT_10_BACK_INSET
+                    : undefined,
+                }}
+                className={`pointer-events-none absolute left-0 z-0 h-auto w-full ${
+                  envelope.topFlap.backSrc.includes("/flat_10_")
+                    ? ""
+                    : "bottom-2"
+                }`}
               />
             ) : null}
             {envelope.layers.map((layer) => {
@@ -1995,7 +2056,9 @@ function EnvelopeVisual({
                       event.stopPropagation();
                       onLetterClick?.();
                     }}
-                    className="carousel-letter-open group absolute left-1/2 top-[var(--letter-top)] cursor-pointer border-0 bg-transparent p-0"
+                    className={`${
+                      playLetterEntrance ? "carousel-letter-open" : ""
+                    } group absolute left-1/2 top-[var(--letter-top)] cursor-pointer border-0 bg-transparent p-0`}
                     style={{
                       "--letter-top": `${topPercent}%`,
                       zIndex: layer.zIndex,
@@ -2020,7 +2083,9 @@ function EnvelopeVisual({
               if (
                 layer.anchor === "fill" &&
                 envelope.topFlap &&
-                (topFlapStep === "closing" ||
+                // flat_10 open look is back + bottom + flap (full fill jumps the seam)
+                (layer.src.includes("/flat_10.webp") ||
+                  topFlapStep === "closing" ||
                   topFlapStep === "closed" ||
                   topFlapStep === "opening")
               ) {
@@ -2032,12 +2097,28 @@ function EnvelopeVisual({
                 (layer.src.includes("flat_7") || layer.src.includes("flat_8"));
 
               if (layer.anchor === "bottom") {
+                // Match front-face backSrc seam inset for flat_10 only
+                const isFlat10Bottom = layer.src.includes("/flat_10_");
+                // flat_9 bottom sits slightly left of the back art
+                const nudgeRight = layer.src.includes("/flat_9_bottom");
+                // flat_1_bottom: slightly wider + optional Y nudge at all flap steps
+                const isFlat1Bottom = layer.src.includes("/flat_1_bottom");
+
                 return (
                   <div
                     key={layer.src}
-                    className="pointer-events-none absolute bottom-0 left-0 w-full"
+                    className={`pointer-events-none absolute ${
+                      isFlat1Bottom ? "left-1/2" : "left-0"
+                    } ${isFlat10Bottom ? "" : "bottom-0"}`}
                     style={{
                       zIndex: layer.zIndex,
+                      bottom: isFlat10Bottom ? FLAT_10_BOTTOM_INSET : undefined,
+                      width: isFlat1Bottom ? "101%" : "100%",
+                      transform: isFlat1Bottom
+                        ? `translateX(${FLAT_1_BOTTOM_TRANSLATE_X}) translateY(${FLAT_1_BOTTOM_TRANSLATE_Y})`
+                        : nudgeRight
+                          ? "translateX(1.5%)"
+                          : undefined,
                     }}
                   >
                     <Image
@@ -2178,8 +2259,8 @@ export function PostcardStack() {
   const [composeStage, setComposeStage] = useState<ComposeStage | null>(null);
   const [messageLeft, setMessageLeft] = useState("");
   const [messageRight, setMessageRight] = useState("");
-  const [recipientEmail, setRecipientEmail] = useState("");
   const [senderName, setSenderName] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [serviceClass, setServiceClass] = useState<ServiceClass>("first");
   const [refNumber, setRefNumber] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
@@ -2224,8 +2305,8 @@ export function PostcardStack() {
     setComposeStage(null);
     setMessageLeft("");
     setMessageRight("");
-    setRecipientEmail("");
     setSenderName("");
+    setRecipientEmail("");
     setServiceClass("first");
     setRefNumber("");
     setSendError(null);
@@ -2308,8 +2389,8 @@ export function PostcardStack() {
       setComposeStage(null);
       setMessageLeft("");
       setMessageRight("");
-      setRecipientEmail("");
       setSenderName("");
+      setRecipientEmail("");
       setServiceClass("first");
       setSendError(null);
       setIsTopFlapCompositionReady(false);
@@ -2485,8 +2566,8 @@ export function PostcardStack() {
 
       if (
         !zoomedEnvelope?.sendable ||
-        !recipientEmail.trim() ||
         !senderName.trim() ||
+        !recipientEmail.trim() ||
         !hasCardMessage(messageLeft, messageRight)
       ) {
         return;
@@ -2502,6 +2583,7 @@ export function PostcardStack() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            senderName: senderName.trim(),
             recipientEmail: recipientEmail.trim(),
             message: combineCardMessage(messageLeft, messageRight).trim(),
             cardTitle: zoomedEnvelope.title,
@@ -2786,6 +2868,7 @@ export function PostcardStack() {
                   }
                   isZoomedEnvelope={zoomPhase === "done" && zoomedIndex === index}
                   isCarouselActive={isActive}
+                  isLoopResetting={isLoopResetting}
                   isClosing={
                     isSendableZoomTarget &&
                     (composeStage === "closing-lift" ||
@@ -2799,8 +2882,8 @@ export function PostcardStack() {
                   composeStage={isSendableZoomTarget ? composeStage : null}
                   messageLeft={isSendableZoomTarget ? messageLeft : ""}
                   messageRight={isSendableZoomTarget ? messageRight : ""}
-                  recipientEmail={isSendableZoomTarget ? recipientEmail : ""}
                   senderName={isSendableZoomTarget ? senderName : ""}
+                  recipientEmail={isSendableZoomTarget ? recipientEmail : ""}
                   onMessageLeftChange={
                     isSendableZoomTarget ? setMessageLeft : undefined
                   }
@@ -2810,11 +2893,11 @@ export function PostcardStack() {
                   onSendClick={
                     isSendableZoomTarget ? handleStartAddressing : undefined
                   }
-                  onRecipientEmailChange={
-                    isSendableZoomTarget ? setRecipientEmail : undefined
-                  }
                   onSenderNameChange={
                     isSendableZoomTarget ? setSenderName : undefined
+                  }
+                  onRecipientEmailChange={
+                    isSendableZoomTarget ? setRecipientEmail : undefined
                   }
                   onAddressSubmit={
                     isSendableZoomTarget ? handleSendCard : undefined
@@ -2855,11 +2938,12 @@ export function PostcardStack() {
       </div>
 
       <div
-        className={`absolute inset-x-0 bottom-0 z-30 flex min-h-[20rem] flex-col items-center justify-center bg-white px-6 pb-6 pt-5 text-center transition-opacity duration-500 ease-out sm:min-h-[18rem] md:min-h-36 md:pt-4 ${
+        className={`absolute inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white px-6 pb-6 pt-5 text-center transition-opacity duration-500 ease-out md:pt-4 ${
           isZooming
             ? "pointer-events-none opacity-0"
             : "pointer-events-auto opacity-100"
         }`}
+        style={{ minHeight: "var(--carousel-chrome-offset)" }}
         aria-hidden={isZooming}
       >
         <div key={activeIndex} className="flex max-w-lg flex-col items-center md:max-w-none">
@@ -2917,42 +3001,53 @@ export function PostcardStack() {
       >
         {zoomedEnvelope ? (
           <>
-            <fieldset className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2 border-0 p-0">
-              <legend className="text-eyebrow sr-only">{t.serviceType}</legend>
-              <span aria-hidden className="text-eyebrow shrink-0">
-                {t.serviceType}
-              </span>
-              {SERVICE_CLASS_OPTIONS.map((option) => {
-                const selected = serviceClass === option;
-                const label =
-                  option === "first" ? t.serviceFirst : t.serviceSecond;
+            {composeStage === "success" ? (
+              <p className="min-w-0 flex-1 text-sm text-neutral-900 [font-family:var(--font-meta)]">
+                {t.cardOnItsWay.replace(
+                  "{days}",
+                  serviceClass === "first"
+                    ? t.serviceDaysFirst
+                    : t.serviceDaysSecond,
+                )}
+              </p>
+            ) : (
+              <fieldset className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2 border-0 p-0">
+                <legend className="text-eyebrow sr-only">{t.serviceType}</legend>
+                <span aria-hidden className="text-eyebrow shrink-0">
+                  {t.serviceType}
+                </span>
+                {SERVICE_CLASS_OPTIONS.map((option) => {
+                  const selected = serviceClass === option;
+                  const label =
+                    option === "first" ? t.serviceFirst : t.serviceSecond;
 
-                return (
-                  <label
-                    key={option}
-                    className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
-                  >
-                    <input
-                      type="radio"
-                      name="service-class"
-                      value={option}
-                      checked={selected}
-                      onChange={() => setServiceClass(option)}
-                      className="sr-only"
-                    />
-                    <span
-                      aria-hidden
-                      className="flex h-4 w-4 shrink-0 items-center justify-center border border-neutral-900 bg-white"
+                  return (
+                    <label
+                      key={option}
+                      className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
                     >
-                      {selected ? (
-                        <span className="block h-2 w-2 bg-neutral-900" />
-                      ) : null}
-                    </span>
-                    {label}
-                  </label>
-                );
-              })}
-            </fieldset>
+                      <input
+                        type="radio"
+                        name="service-class"
+                        value={option}
+                        checked={selected}
+                        onChange={() => setServiceClass(option)}
+                        className="sr-only"
+                      />
+                      <span
+                        aria-hidden
+                        className="flex h-4 w-4 shrink-0 items-center justify-center border border-neutral-900 bg-white"
+                      >
+                        {selected ? (
+                          <span className="block h-2 w-2 bg-neutral-900" />
+                        ) : null}
+                      </span>
+                      {label}
+                    </label>
+                  );
+                })}
+              </fieldset>
+            )}
             <div className="flex shrink-0 items-center gap-3">
               <Button
                 variant="primary"
