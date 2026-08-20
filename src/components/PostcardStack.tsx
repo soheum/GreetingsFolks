@@ -2945,7 +2945,7 @@ export function PostcardStack() {
       </div>
 
       <div
-        className={`absolute inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white px-6 pb-6 pt-5 text-center transition-opacity duration-500 ease-out md:pt-4 ${
+        className={`absolute inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white px-10 py-12 text-center transition-opacity duration-500 ease-out md:px-6 md:pb-6 md:pt-4 ${
           isZooming
             ? "pointer-events-none opacity-0"
             : "pointer-events-auto opacity-100"
@@ -2956,15 +2956,15 @@ export function PostcardStack() {
         <div key={activeIndex} className="flex max-w-lg flex-col items-center md:max-w-none">
           <h2>{activeCopy.title}</h2>
           <p className="text-sm text-neutral-500">{activeCopy.subtitle}</p>
-          <p className="mt-3 text-sm leading-relaxed text-neutral-600 md:hidden">
+          <p className="mt-2 text-sm leading-snug text-neutral-600 md:hidden">
             {activeCopy.description}
           </p>
           {activeCopy.descriptionNote ? (
-            <p className="mt-2 text-xs leading-relaxed text-neutral-500 md:hidden">
+            <p className="mt-1.5 text-xs leading-snug text-neutral-500 md:hidden">
               {activeCopy.descriptionNote}
             </p>
           ) : null}
-          <div className="mt-4 flex items-center justify-center gap-3 md:mt-5">
+          <div className="mt-3 flex items-center justify-center gap-3 md:mt-5">
             <Button variant="outline" onClick={() => setDetailsOpen(true)}>
               {t.viewDetails}
             </Button>
@@ -2989,7 +2989,7 @@ export function PostcardStack() {
         )}
 
       <div
-        className={`absolute inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t border-neutral-200 bg-white px-6 py-4 transition-opacity duration-700 ease-out ${
+        className={`absolute inset-x-0 bottom-0 z-40 flex flex-col items-center gap-4 border-t border-neutral-200 bg-white px-6 py-4 transition-opacity duration-700 ease-out md:flex-row md:justify-between ${
           isZooming &&
           (zoomPhase === "growing" || zoomPhase === "done") &&
           zoomedEnvelope &&
@@ -3009,7 +3009,7 @@ export function PostcardStack() {
         {zoomedEnvelope ? (
           <>
             {composeStage === "success" ? (
-              <p className="min-w-0 flex-1 text-sm text-neutral-900 [font-family:var(--font-meta)]">
+              <p className="min-w-0 flex-1 text-center text-sm text-neutral-900 md:text-left [font-family:var(--font-meta)]">
                 {t.cardOnItsWay.replace(
                   "{days}",
                   deliveryDaysLabel ||
@@ -3019,42 +3019,44 @@ export function PostcardStack() {
                 )}
               </p>
             ) : (
-              <fieldset className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2 border-0 p-0">
+              <fieldset className="flex min-w-0 flex-1 flex-col items-center gap-2 border-0 p-0 md:flex-row md:flex-wrap md:items-center md:justify-start md:gap-x-6 md:gap-y-2">
                 <legend className="text-eyebrow sr-only">{t.serviceType}</legend>
                 <span aria-hidden className="text-eyebrow shrink-0">
                   {t.serviceType}
                 </span>
-                {SERVICE_CLASS_OPTIONS.map((option) => {
-                  const selected = serviceClass === option;
-                  const label =
-                    option === "first" ? t.serviceFirst : t.serviceSecond;
+                <div className="flex flex-col items-center gap-2 md:flex-row md:flex-wrap md:items-center md:gap-x-6 md:gap-y-2">
+                  {SERVICE_CLASS_OPTIONS.map((option) => {
+                    const selected = serviceClass === option;
+                    const label =
+                      option === "first" ? t.serviceFirst : t.serviceSecond;
 
-                  return (
-                    <label
-                      key={option}
-                      className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
-                      onClick={() => setServiceClass(option)}
-                    >
-                      <input
-                        type="radio"
-                        name="service-class"
-                        value={option}
-                        checked={selected}
-                        onChange={() => setServiceClass(option)}
-                        className="sr-only"
-                      />
-                      <span
-                        aria-hidden
-                        className="flex h-4 w-4 shrink-0 items-center justify-center border border-neutral-900 bg-white"
+                    return (
+                      <label
+                        key={option}
+                        className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
+                        onClick={() => setServiceClass(option)}
                       >
-                        {selected ? (
-                          <span className="block h-2 w-2 bg-neutral-900" />
-                        ) : null}
-                      </span>
-                      {label}
-                    </label>
-                  );
-                })}
+                        <input
+                          type="radio"
+                          name="service-class"
+                          value={option}
+                          checked={selected}
+                          onChange={() => setServiceClass(option)}
+                          className="sr-only"
+                        />
+                        <span
+                          aria-hidden
+                          className="flex h-4 w-4 shrink-0 items-center justify-center border border-neutral-900 bg-white"
+                        >
+                          {selected ? (
+                            <span className="block h-2 w-2 bg-neutral-900" />
+                          ) : null}
+                        </span>
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
               </fieldset>
             )}
             <div className="flex shrink-0 items-center gap-3">

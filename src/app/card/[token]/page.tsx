@@ -74,14 +74,9 @@ export default async function CardPage({
   }
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden overscroll-x-none bg-[#DF0000]">
+    <main className="flex h-dvh flex-col overflow-hidden overscroll-x-none bg-[#F3F9F9]">
       <TopNav />
-      <ReceivedCard
-        message={data.message}
-        cardTitle={data.card_title}
-        cardImage={data.card_image}
-        envelope={envelope}
-      />
+      <ReceivedCard message={data.message} envelope={envelope} />
     </main>
   );
 }

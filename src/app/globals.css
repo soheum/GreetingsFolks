@@ -341,7 +341,7 @@ body.envelope-zoom-active footer {
 .receive-envelope-stage {
   --envelope-center-height: 48vh;
   --envelope-side-height: 32vh;
-  --carousel-chrome-offset: 20rem;
+  --carousel-chrome-offset: 14rem;
 }
 
 @media (min-width: 640px) {
@@ -349,7 +349,7 @@ body.envelope-zoom-active footer {
   .receive-envelope-stage {
     --envelope-center-height: 52vh;
     --envelope-side-height: 34.5vh;
-    --carousel-chrome-offset: 18rem;
+    --carousel-chrome-offset: 13rem;
   }
 }
 
@@ -491,11 +491,10 @@ body.envelope-zoom-active footer {
   }
 }
 
-/* Receive open: fall pose (carousel seat size) → center → sender zoom. */
+/* Receive open: carousel seat → sender zoom (no fall / handoff). */
 .receive-envelope-motion {
   position: absolute;
   z-index: 40;
-  /* Same box as sender carousel center from the first handoff frame */
   width: calc(
     var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
   );
@@ -503,14 +502,7 @@ body.envelope-zoom-active footer {
   aspect-ratio: var(--envelope-aspect);
   transform-origin: center center;
   perspective: 1400px;
-  will-change: top, left, bottom, transform;
-}
-
-.receive-envelope-motion--handoff {
-  top: var(--handoff-center-y);
-  left: var(--handoff-center-x);
-  transform: translate(-50%, -50%) rotate(var(--fall-rotate, -8deg));
-  transition: none;
+  will-change: transform;
 }
 
 /* Match sender carousel center seat (center-height, bottom 4rem), scale 1. */
@@ -519,11 +511,7 @@ body.envelope-zoom-active footer {
   bottom: 4rem;
   left: 50%;
   transform: translateX(-50%) rotate(0deg) scale(1);
-  transition:
-    top 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    bottom 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    left 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: none;
 }
 
 /* Match sender zoomed write size: same zoomScale + zoomTranslateY. */

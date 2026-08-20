@@ -4,7 +4,6 @@ import Image from "next/image";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -12,11 +11,8 @@ import {
 import { Button } from "./Button";
 import { ViewDetailsModal } from "./ViewDetailsModal";
 import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
-import { postFallImage, postFallNudgeY } from "@/lib/card-images";
 import { useLocale } from "@/lib/locale";
 
-const FALL_MS = 1100;
-const HANDOFF_MS = 900;
 const FRAME_MS = 600;
 const ZOOM_MS = 1300;
 const FLAP_MS = 1400;
@@ -34,29 +30,15 @@ const LETTER_SIZE_MULTIPLIER = 1.125;
 /** Extra downward offset for the sealed see-through letter (percent of envelope height) */
 const SEALED_LETTER_TOP_NUDGE = 8;
 
-/** Fall ends tilted so straighten is visible on click */
-const FALL_END_ROTATE_DEG = -8;
-
 type ReceiveStage =
-  | "landing"
-  | "handing-off"
   | "framing"
   | "zooming"
   | "opening-flap"
   | "opening-letter"
   | "reading";
 
-type HandoffPose = {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-};
-
 type ReceivedCardProps = {
   message: string;
-  cardTitle: string;
-  cardImage: string;
   envelope: Envelope;
 };
 
@@ -876,10 +858,8 @@ function ReceiveLetter({
   );
 }
 
-function motionClassForStage(stage: Exclude<ReceiveStage, "landing">) {
+function motionClassForStage(stage: ReceiveStage) {
   switch (stage) {
-    case "handing-off":
-      return "receive-envelope-motion--handoff";
     case "framing":
       return "receive-envelope-motion--framing";
     case "zooming":
@@ -889,7 +869,7 @@ function motionClassForStage(stage: Exclude<ReceiveStage, "landing">) {
   }
 }
 
-function flapModeForStage(stage: Exclude<ReceiveStage, "landing">): FlapMode {
+function flapModeForStage(stage: ReceiveStage): FlapMode {
   if (stage === "opening-flap") {
     return "opening";
   }
@@ -900,7 +880,7 @@ function flapModeForStage(stage: Exclude<ReceiveStage, "landing">): FlapMode {
 }
 
 function letterModeForStage(
-  stage: Exclude<ReceiveStage, "landing">,
+  stage: ReceiveStage,
 ): "pocketed" | "flipping" | "flipped" {
   if (stage === "opening-letter") {
     return "flipping";
@@ -911,20 +891,44 @@ function letterModeForStage(
   return "pocketed";
 }
 
+function letterOpenDuration(letterLayer: EnvelopeLayer | undefined) {
+  if (letterLayer?.letterOpenMotion === "tri-fold-open") {
+    return LETTER_TRI_FOLD_MS;
+  }
+  if (letterLayer?.letterOpenMotion === "fold-open") {
+    return 6000;
+  }
+  if (letterLayer?.letterOpenMotion === "lift-settle") {
+    return (
+      LETTER_LIFT_SETTLE_MS +
+      (letterLayer.outsideRightSrc && letterLayer.insideRightSrc
+        ? LETTER_RIGHT_FLAP_OPEN_MS
+        : 0) +
+      (letterLayer.outsideLeftSrc && letterLayer.insideLeftSrc
+        ? LETTER_LEFT_FLAP_OPEN_MS
+        : 0)
+    );
+  }
+  if (letterLayer?.letterOpenMotion === "lift-rotate-flip") {
+    return LETTER_LIFT_ROTATE_FLIP_MS;
+  }
+  if (letterLayer?.letterOpenMotion === "lift-rotate-settle") {
+    return LETTER_LIFT_ROTATE_SETTLE_MS;
+  }
+  if (letterLayer?.letterOpenMotion === "lift-rotate-right") {
+    return LETTER_LIFT_ROTATE_RIGHT_MS;
+  }
+  return LETTER_FLIP_MS;
+}
+
 function ReceiveEnvelopeOpen({
   envelope,
   message,
   stage,
-  pose,
-  fallSrc,
-  cardTitle,
 }: {
   envelope: Envelope;
   message: string;
-  stage: Exclude<ReceiveStage, "landing">;
-  pose: HandoffPose;
-  fallSrc: string;
-  cardTitle: string;
+  stage: ReceiveStage;
 }) {
   const { t, envelopeCopy } = useLocale();
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -942,7 +946,6 @@ function ReceiveEnvelopeOpen({
 
   const flapMode = flapModeForStage(stage);
   const letterMode = letterModeForStage(stage);
-  const showPostOverlay = stage === "handing-off";
   const isSealed = flapMode === "closed";
   const baseReady = flapMode === "opening" || flapMode === "open";
   // Closed look = bottom + top_outside + sticker (not fill — fill fights the sealed flap)
@@ -957,47 +960,19 @@ function ReceiveEnvelopeOpen({
     stage === "opening-letter" ||
     stage === "reading";
 
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [viewportOrigin, setViewportOrigin] = useState({ top: 0, left: 0 });
-
-  useLayoutEffect(() => {
-    const frame = viewportRef.current;
-    if (!frame) {
-      return;
-    }
-
-    const measure = () => {
-      const rect = frame.getBoundingClientRect();
-      setViewportOrigin({ top: rect.top, left: rect.left });
-    };
-
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
-
-  // Handoff keeps fall-letter position/rotation but already uses the sender
-  // carousel seat size (--envelope-center-height). Framing only recenters.
-  const handoffCenterX =
-    pose.left - viewportOrigin.left + pose.width / 2;
-  const handoffCenterY =
-    pose.top - viewportOrigin.top + pose.height / 2;
   const zoomScale = envelope.zoomScale ?? 2;
   const zoomTranslateY = envelope.zoomTranslateY ?? "0px";
 
   return (
     <section className="receive-envelope-stage relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
-      <div ref={viewportRef} className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden">
         <div
           className={`receive-envelope-motion ${motionClassForStage(stage)}`}
           style={
             {
-              "--handoff-center-x": `${handoffCenterX}px`,
-              "--handoff-center-y": `${handoffCenterY}px`,
               "--envelope-aspect": `${envelope.width} / ${envelope.height}`,
               "--envelope-w": envelope.width,
               "--envelope-h": envelope.height,
-              "--fall-rotate": `${FALL_END_ROTATE_DEG}deg`,
               "--zoom-scale": String(zoomScale),
               "--zoom-translate-y": zoomTranslateY,
             } as CSSProperties
@@ -1158,18 +1133,6 @@ function ReceiveEnvelopeOpen({
                 </div>
               </>
             ) : null}
-
-            {showPostOverlay ? (
-              <Image
-                src={fallSrc}
-                alt={cardTitle}
-                width={636}
-                height={529}
-                priority
-                unoptimized
-                className="receive-post-handoff pointer-events-none absolute inset-0 z-[90] h-full w-full object-contain drop-shadow-[0_18px_30px_rgba(0,0,0,0.28)]"
-              />
-            ) : null}
           </div>
         </div>
       </div>
@@ -1213,20 +1176,9 @@ function ReceiveEnvelopeOpen({
   );
 }
 
-export function ReceivedCard({
-  message,
-  cardTitle,
-  cardImage,
-  envelope,
-}: ReceivedCardProps) {
-  const { t } = useLocale();
-  const [stage, setStage] = useState<ReceiveStage>("landing");
-  const [fallDone, setFallDone] = useState(false);
-  const [pose, setPose] = useState<HandoffPose | null>(null);
-  const letterBtnRef = useRef<HTMLButtonElement>(null);
+export function ReceivedCard({ message, envelope }: ReceivedCardProps) {
+  const [stage, setStage] = useState<ReceiveStage>("framing");
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const fallSrc = postFallImage(cardImage);
-  const fallNudgeY = postFallNudgeY(cardImage);
   const letterLayer = envelope.layers?.find((layer) => layer.anchor === "center");
 
   const clearTimers = useCallback(() => {
@@ -1242,43 +1194,16 @@ export function ReceivedCard({
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   useEffect(() => {
-    const id = setTimeout(() => setFallDone(true), FALL_MS);
-    return () => clearTimeout(id);
-  }, []);
-
-  useEffect(() => {
-    const open = stage !== "landing";
-    document.body.classList.toggle("envelope-zoom-active", open);
+    document.body.classList.add("envelope-zoom-active");
     return () => {
       document.body.classList.remove("envelope-zoom-active");
     };
-  }, [stage]);
+  }, []);
 
-  const startOpen = useCallback(() => {
-    if (stage !== "landing" || !fallDone) {
-      return;
-    }
-
-    const el = letterBtnRef.current;
-    if (!el) {
-      return;
-    }
-
-    const rect = el.getBoundingClientRect();
-    setPose({
-      top: rect.top,
-      left: rect.left,
-      width: rect.width,
-      height: rect.height,
-    });
-
+  useEffect(() => {
     clearTimers();
-    setStage("handing-off");
 
-    let t = HANDOFF_MS;
-    schedule(() => setStage("framing"), t);
-
-    t += FRAME_MS;
+    let t = FRAME_MS;
     schedule(() => setStage("zooming"), t);
 
     t += ZOOM_MS;
@@ -1287,130 +1212,17 @@ export function ReceivedCard({
     t += FLAP_MS;
     schedule(() => setStage("opening-letter"), t);
 
-    const letterOpenMs =
-      letterLayer?.letterOpenMotion === "tri-fold-open"
-        ? LETTER_TRI_FOLD_MS
-        : letterLayer?.letterOpenMotion === "fold-open"
-          ? 6000
-          : letterLayer?.letterOpenMotion === "lift-settle"
-            ? LETTER_LIFT_SETTLE_MS +
-              (letterLayer.outsideRightSrc && letterLayer.insideRightSrc
-                ? LETTER_RIGHT_FLAP_OPEN_MS
-                : 0) +
-              (letterLayer.outsideLeftSrc && letterLayer.insideLeftSrc
-                ? LETTER_LEFT_FLAP_OPEN_MS
-                : 0)
-            : letterLayer?.letterOpenMotion === "lift-rotate-flip"
-              ? LETTER_LIFT_ROTATE_FLIP_MS
-              : letterLayer?.letterOpenMotion === "lift-rotate-settle"
-                ? LETTER_LIFT_ROTATE_SETTLE_MS
-                : letterLayer?.letterOpenMotion === "lift-rotate-right"
-                  ? LETTER_LIFT_ROTATE_RIGHT_MS
-                  : LETTER_FLIP_MS;
-    t += letterOpenMs;
+    t += letterOpenDuration(letterLayer);
     schedule(() => setStage("reading"), t);
-  }, [
-    stage,
-    fallDone,
-    clearTimers,
-    schedule,
-    letterLayer,
-  ]);
 
-  if (stage === "landing") {
-    return (
-      <section className="post-landing relative flex min-h-0 flex-1 items-end justify-center overflow-hidden bg-[#DF0000] md:items-center">
-        <div className="post-stage relative">
-          <Image
-            src="/images/post_bottom_mobile.jpg"
-            alt=""
-            aria-hidden
-            width={1080}
-            height={1920}
-            priority
-            unoptimized
-            className="absolute inset-0 z-0 h-full w-full object-contain md:hidden"
-          />
-          <Image
-            src="/images/post_bottom.jpg"
-            alt=""
-            aria-hidden
-            width={1920}
-            height={1080}
-            priority
-            unoptimized
-            className="absolute inset-0 z-0 hidden h-full w-full object-contain md:block"
-          />
-
-          {fallDone ? (
-            <p className="pointer-events-none absolute top-[10%] left-1/2 z-30 w-[90%] -translate-x-1/2 text-center text-white">
-              {t.openLetterHint}
-            </p>
-          ) : null}
-
-          <button
-            ref={letterBtnRef}
-            type="button"
-            aria-label={`Open ${cardTitle}`}
-            disabled={!fallDone}
-            onClick={startOpen}
-            className={`letter-fall absolute left-1/2 z-10 w-[75%] border-0 bg-transparent p-0 md:w-[37.8%] ${
-              fallDone ? "letter-fall--done cursor-pointer" : "cursor-default"
-            }`}
-            style={
-              {
-                "--letter-fall-nudge-y": fallNudgeY,
-              } as CSSProperties
-            }
-          >
-            <Image
-              src={fallSrc}
-              alt={cardTitle}
-              width={636}
-              height={529}
-              priority
-              unoptimized
-              className="h-auto w-full drop-shadow-[0_18px_30px_rgba(0,0,0,0.28)]"
-            />
-          </button>
-
-          <Image
-            src="/images/post_top_mobile.webp"
-            alt=""
-            aria-hidden
-            width={1080}
-            height={1920}
-            priority
-            unoptimized
-            className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain md:hidden"
-          />
-          <Image
-            src="/images/post_top.webp"
-            alt=""
-            aria-hidden
-            width={1920}
-            height={1080}
-            priority
-            unoptimized
-            className="pointer-events-none absolute inset-0 z-20 hidden h-full w-full object-contain md:block"
-          />
-        </div>
-      </section>
-    );
-  }
-
-  if (!pose) {
-    return null;
-  }
+    return clearTimers;
+  }, [clearTimers, schedule, letterLayer]);
 
   return (
     <ReceiveEnvelopeOpen
       envelope={envelope}
       message={message}
       stage={stage}
-      pose={pose}
-      fallSrc={fallSrc}
-      cardTitle={cardTitle}
     />
   );
 }
