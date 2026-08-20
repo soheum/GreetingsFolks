@@ -128,12 +128,6 @@ export function ViewDetailsModal({
               </h2>
               <p className="mt-1 text-sm text-neutral-500">{copy.subtitle}</p>
 
-              <div className="mt-6 space-y-3 leading-relaxed text-neutral-700 [&_p]:text-sm">
-                {copy.body.map((paragraph, index) => (
-                  <p key={index}>{linkifyBojagi(paragraph)}</p>
-                ))}
-              </div>
-
               {copy.imageSrc ? (
                 copy.imageHref ? (
                   <a
@@ -173,12 +167,12 @@ export function ViewDetailsModal({
                     href={copy.imageHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-bold underline-offset-2 hover:underline"
+                    className="font-medium underline-offset-2 hover:underline"
                   >
                     {copy.imageCaption}
                   </a>
                 ) : (
-                  <span className="font-bold">{copy.imageCaption}</span>
+                  <span className="font-medium">{copy.imageCaption}</span>
                 )}
                 <br />
                 {copy.sourceCredit}
@@ -189,6 +183,15 @@ export function ViewDetailsModal({
                   {copy.meaningsLabel}
                 </p>
                 <p>{copy.meanings}</p>
+              </div>
+
+              <div className="mt-8 space-y-1 text-neutral-600 [&_p]:text-sm">
+                <p className="font-medium text-neutral-800">
+                  {locale === "ko" ? "설명" : "Description"}
+                </p>
+                {copy.body.map((paragraph, index) => (
+                  <p key={index}>{linkifyBojagi(paragraph)}</p>
+                ))}
               </div>
             </div>
           </div>

@@ -10,9 +10,55 @@ type OurServiceModalProps = {
   onClose: () => void;
 };
 
+function getTypingState(
+  scrollProgress: number,
+  locale: "en" | "ko",
+  fullText: string,
+) {
+  const TYPE_START = locale === "ko" ? 0.22 : 0.12;
+  const typeProgress = Math.max(
+    0,
+    Math.min(1, (scrollProgress - TYPE_START) / (1 - TYPE_START)),
+  );
+  const visibleCount =
+    typeProgress >= 0.985
+      ? fullText.length
+      : Math.floor(typeProgress * fullText.length);
+
+  return { TYPE_START, typeProgress, visibleCount };
+}
+
+const SCROLL_SOUND_IDLE_MS = 160;
+const TYPEWRITER_VOLUME = 0.45;
+
+let typewriterBytesPromise: Promise<ArrayBuffer> | null = null;
+
+function getTypewriterBytes() {
+  if (!typewriterBytesPromise) {
+    typewriterBytesPromise = fetch("/audio/typewriter_machine_trimmed.mp3").then((response) => {
+      if (!response.ok) {
+        throw new Error("Failed to load typewriter audio");
+      }
+      return response.arrayBuffer();
+    });
+  }
+  return typewriterBytesPromise;
+}
+
+if (typeof window !== "undefined") {
+  getTypewriterBytes();
+}
+
 export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
   const { t, locale } = useLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const bufferRef = useRef<AudioBuffer | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wantSoundRef = useRef(false);
+  const lastScrollTopRef = useRef(0);
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const fullText = useMemo(
@@ -20,11 +66,132 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
     [t.ourServiceTitle, t.ourServiceIntro, t.ourServiceBody],
   );
 
+  const stopSource = () => {
+    const source = sourceRef.current;
+    if (!source) {
+      return;
+    }
+    try {
+      source.stop();
+    } catch {
+      // Already stopped.
+    }
+    source.disconnect();
+    sourceRef.current = null;
+  };
+
+  const startSource = () => {
+    const ctx = audioCtxRef.current;
+    const buffer = bufferRef.current;
+    const gain = gainRef.current;
+    if (!ctx || !buffer || !gain || sourceRef.current) {
+      return;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(gain);
+    source.start();
+    sourceRef.current = source;
+  };
+
+  const stopTypewriterSound = () => {
+    wantSoundRef.current = false;
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    stopSource();
+  };
+
+  const pulseTypewriterSound = () => {
+    wantSoundRef.current = true;
+    const ctx = audioCtxRef.current;
+    if (ctx?.state === "suspended") {
+      void ctx.resume().then(() => {
+        if (wantSoundRef.current && bufferRef.current) {
+          startSource();
+        }
+      });
+    } else if (bufferRef.current) {
+      startSource();
+    }
+
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+    }
+    idleTimerRef.current = setTimeout(() => {
+      wantSoundRef.current = false;
+      stopSource();
+      idleTimerRef.current = null;
+    }, SCROLL_SOUND_IDLE_MS);
+  };
+
+  useEffect(() => {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+
+    const ctx = new AudioContextClass();
+    const gain = ctx.createGain();
+    gain.gain.value = TYPEWRITER_VOLUME;
+    gain.connect(ctx.destination);
+    audioCtxRef.current = ctx;
+    gainRef.current = gain;
+
+    let cancelled = false;
+    void getTypewriterBytes()
+      .then((bytes) => ctx.decodeAudioData(bytes.slice(0)))
+      .then((buffer) => {
+        if (cancelled) {
+          return;
+        }
+        bufferRef.current = buffer;
+        if (wantSoundRef.current) {
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.loop = true;
+          source.connect(gain);
+          source.start();
+          sourceRef.current = source;
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      const source = sourceRef.current;
+      if (source) {
+        try {
+          source.stop();
+        } catch {
+          // Already stopped.
+        }
+        source.disconnect();
+        sourceRef.current = null;
+      }
+      void ctx.close();
+      audioCtxRef.current = null;
+      bufferRef.current = null;
+      gainRef.current = null;
+    };
+  }, []);
+
   useEffect(() => {
     if (!open) {
       setScrollProgress(0);
+      lastScrollTopRef.current = 0;
+      stopTypewriterSound();
       return;
     }
+
+    // Unlock audio from the click that opened the modal (scroll itself is not a gesture).
+    void audioCtxRef.current?.resume();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -39,28 +206,35 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
+      stopTypewriterSound();
     };
   }, [open, onClose]);
 
-  if (!open) {
-    return null;
-  }
+  // Replay typing if language changes while the modal is open
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setScrollProgress(0);
+    lastScrollTopRef.current = 0;
+    scrollRef.current?.scrollTo({ top: 0 });
+    stopTypewriterSound();
+  }, [locale, open]);
+
+  const { typeProgress, visibleCount } = getTypingState(
+    scrollProgress,
+    locale,
+    fullText,
+  );
 
   // Same scrollProgress drives panel rise + typed characters.
-  // Korean copy is longer, so the letter needs to finish higher.
   const PINK_START_Y = 55;
-  const PINK_END_Y = locale === "ko" ? -25 : -35;
+  // Extra How It Works copy made the letter taller — rise so the sign-off
+  // clears the typewriter. Tune per locale (KO letter is shorter).
+  const PINK_END_Y = locale === "ko" ? -40 : -50;
   const pinkOffsetY =
     PINK_START_Y + (PINK_END_Y - PINK_START_Y) * scrollProgress;
 
-  // First portion of scroll only raises the paper (still mostly behind the image).
-  // Typing starts after that so it isn't "used up" while the letter is off-screen.
-  const TYPE_START = 0.05;
-  const typeProgress = Math.max(
-    0,
-    Math.min(1, (scrollProgress - TYPE_START) / (1 - TYPE_START)),
-  );
-  const visibleCount = Math.floor(typeProgress * fullText.length);
   const visibleText = fullText.slice(0, visibleCount);
   const paragraphs = visibleText.length > 0 ? visibleText.split("\n\n") : [];
   const showCaret = typeProgress > 0 && typeProgress < 1;
@@ -68,6 +242,10 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
     locale === "ko"
       ? '"Gowun Batang", Batang, serif'
       : '"Traveling Typewriter", "Alike Angular", ui-monospace, monospace';
+
+  if (!open) {
+    return null;
+  }
 
   return (
     <div
@@ -101,16 +279,32 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
         onScroll={(event) => {
           const el = event.currentTarget;
           const maxScroll = el.scrollHeight - el.clientHeight;
-          setScrollProgress(
-            maxScroll > 0 ? Math.min(1, Math.max(0, el.scrollTop / maxScroll)) : 0,
+          const progress =
+            maxScroll > 0
+              ? Math.min(1, Math.max(0, el.scrollTop / maxScroll))
+              : 0;
+          setScrollProgress(progress);
+
+          const scrollingDown = el.scrollTop > lastScrollTopRef.current;
+          lastScrollTopRef.current = el.scrollTop;
+
+          const { typeProgress: nextTypeProgress } = getTypingState(
+            progress,
+            locale,
+            fullText,
           );
+          if (scrollingDown && nextTypeProgress > 0) {
+            pulseTypewriterSound();
+          } else {
+            stopTypewriterSound();
+          }
         }}
       >
         {/* Tall track = slower typing per scroll distance (keeps type + rise in sync) */}
-        <div className="relative h-[320vh]">
+        <div className="relative h-[440vh]">
           <div className="sticky top-0 h-dvh overflow-hidden">
             <div
-              className="absolute top-1/2 left-1/2 z-[5] w-[min(92vw,40rem)] overflow-hidden rounded-sm px-8 py-10 shadow-sm sm:px-10 sm:py-12"
+              className="absolute top-1/2 left-1/2 z-[5] w-[min(92vw,40rem)] overflow-hidden rounded-sm px-16 py-12 pb-16 shadow-sm sm:px-16 sm:py-18 sm:pb-22"
               style={{
                 transform: `translate(-50%, calc(-50% + ${pinkOffsetY}vh))`,
                 fontFamily: letterFontFamily,
@@ -194,16 +388,34 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center overflow-hidden">
-              <Image
-                src="/images/type_3.png"
-                alt=""
-                aria-hidden
-                width={3016}
-                height={1282}
-                priority
-                className="h-auto w-[min(92vw,56rem)] max-w-none translate-y-[22%]"
-                sizes="(max-width: 768px) 92vw, 56rem"
-              />
+              <div className="relative w-[min(92vw,56rem)] translate-y-[0%]">
+                <Image
+                  src="/images/type_3.png"
+                  alt=""
+                  aria-hidden
+                  width={3016}
+                  height={1282}
+                  priority
+                  className="h-auto w-full max-w-none"
+                  sizes="(max-width: 768px) 92vw, 56rem"
+                />
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="absolute right-[7%] top-[75%] z-20 h-auto w-[7.5%] cursor-pointer border-0 bg-transparent p-0 pointer-events-auto transition-transform duration-150 ease-out hover:-translate-y-2 active:-translate-y-3"
+                >
+                  <Image
+                    src="/images/type_button.png"
+                    alt=""
+                    aria-hidden
+                    width={164}
+                    height={262}
+                    priority
+                    className="h-auto w-full"
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>

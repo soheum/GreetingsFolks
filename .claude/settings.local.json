@@ -5,7 +5,14 @@
       "Bash(node -e ' *)",
       "Bash(npx tsc *)",
       "Bash(grep -E \"^flat_[0-9]+_more\\\\.jpg$\")",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(mkdir -p /Users/sohmnm/Downloads/ncvs-dashboard/src/app /Users/sohmnm/Downloads/ncvs-dashboard/src/ds /Users/sohmnm/Downloads/ncvs-dashboard/public/assets *)",
+      "Bash(npm install *)",
+      "Bash(cp -R '/Users/sohmnm/Downloads/NCVS × Sanam Design System/tokens' /Users/sohmnm/Downloads/ncvs-dashboard/src/ds/tokens)",
+      "Bash(cp -R '/Users/sohmnm/Downloads/NCVS × Sanam Design System/components' /Users/sohmnm/Downloads/ncvs-dashboard/src/ds/components)",
+      "Bash(cp -R '/Users/sohmnm/Downloads/NCVS × Sanam Design System/assets/logos' /Users/sohmnm/Downloads/ncvs-dashboard/public/assets/logos)",
+      "Bash(cp -R '/Users/sohmnm/Downloads/NCVS × Sanam Design System/assets/images' /Users/sohmnm/Downloads/ncvs-dashboard/public/assets/images)",
+      "Bash(break)"
     ]
   }
 }
