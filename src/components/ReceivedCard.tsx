@@ -959,7 +959,6 @@ function ReceiveEnvelopeOpen({
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportOrigin, setViewportOrigin] = useState({ top: 0, left: 0 });
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   useLayoutEffect(() => {
     const frame = viewportRef.current;
@@ -970,7 +969,6 @@ function ReceiveEnvelopeOpen({
     const measure = () => {
       const rect = frame.getBoundingClientRect();
       setViewportOrigin({ top: rect.top, left: rect.left });
-      setViewportSize({ width: rect.width, height: rect.height });
     };
 
     measure();
@@ -978,63 +976,18 @@ function ReceiveEnvelopeOpen({
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  // Keep envelope portrait proportions so bottom/flap/sticker compose correctly.
-  // Shift up from the fallen letter box — pose.top alone still sits too low.
-  const envelopeAspect = envelope.height / envelope.width;
-  const rawHandoffWidth = pose.width;
-  const rawHandoffHeight = pose.width * envelopeAspect;
-
-  // Receive size:
-  // 1) Prefer fallen-letter width × envelope aspect as the base box.
-  // 2) Target height = viewport × fit ratio (× optional receiveZoomScale).
-  // 3) Tall cards often produce a base taller than the fit target — cap the
-  //    layout box itself (flat_9 / flat_10) so handoff never flashes oversized,
-  //    then CSS scale only eases up when the fall letter was smaller.
-  const zoomScaleFactor =
-    envelope.receiveZoomScale ?? envelope.zoomScale ?? 2;
-  const viewportH =
-    viewportSize.height ||
-    (typeof window !== "undefined" ? window.innerHeight : 800);
-  const isMdUp =
-    typeof window !== "undefined" &&
-    window.matchMedia("(min-width: 768px)").matches;
-  const centerHeightRatio = isMdUp ? 0.65 : 0.48;
-  const desiredHeightPx =
-    (typeof window !== "undefined" ? window.innerHeight : viewportH) *
-    centerHeightRatio *
-    zoomScaleFactor;
-  const opensSideFlaps = Boolean(
-    letterLayer.outsideLeftSrc && letterLayer.outsideRightSrc,
-  );
-  const needsOpenHeadroom =
-    opensSideFlaps || letterLayer.letterOpenMotion === "lift-rotate-right";
-  // Leave room for lifted/rotated letters, but keep sealed envelopes readable.
-  const maxFitRatio =
-    envelopeAspect > 1.8 ? (needsOpenHeadroom ? 0.56 : 0.62) : 0.78;
-  const maxFitHeight = viewportH * maxFitRatio;
-  const targetHeightPx = Math.min(desiredHeightPx, maxFitHeight);
-
-  const handoffHeight = Math.min(rawHandoffHeight, targetHeightPx);
-  const handoffWidth =
-    rawHandoffHeight > 0
-      ? rawHandoffWidth * (handoffHeight / rawHandoffHeight)
-      : rawHandoffWidth;
-  const handoffLeft =
-    pose.left -
-    viewportOrigin.left +
-    (rawHandoffWidth - handoffWidth) / 2;
+  // Handoff starts from the fallen letter box; framing/zoom then match the
+  // sender carousel seat (--envelope-center-height) + zoomScale / zoomTranslateY.
+  const handoffWidth = pose.width;
+  const handoffHeight = pose.width * (envelope.height / envelope.width);
+  const handoffLeft = pose.left - viewportOrigin.left;
   const handoffTop =
-    pose.top -
-    viewportOrigin.top -
-    (handoffHeight - pose.height) * 1.2;
-
-  const zoomScale =
-    handoffHeight > 0 ? targetHeightPx / handoffHeight : 1;
-  // With the box capped above, frameScale stays ≤ 1 and usually ≈ 1.
-  const frameScale = Math.min(1, zoomScale);
+    pose.top - viewportOrigin.top - (handoffHeight - pose.height) * 1.2;
+  const zoomScale = envelope.zoomScale ?? 2;
+  const zoomTranslateY = envelope.zoomTranslateY ?? "0px";
 
   return (
-    <section className="relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
+    <section className="receive-envelope-stage relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
       <div ref={viewportRef} className="absolute inset-0 overflow-hidden">
         <div
           className={`receive-envelope-motion ${motionClassForStage(stage)}`}
@@ -1045,9 +998,11 @@ function ReceiveEnvelopeOpen({
               "--handoff-width": `${handoffWidth}px`,
               "--handoff-height": `${handoffHeight}px`,
               "--envelope-aspect": `${envelope.width} / ${envelope.height}`,
+              "--envelope-w": envelope.width,
+              "--envelope-h": envelope.height,
               "--fall-rotate": `${FALL_END_ROTATE_DEG}deg`,
-              "--frame-scale": String(frameScale),
               "--zoom-scale": String(zoomScale),
+              "--zoom-translate-y": zoomTranslateY,
             } as CSSProperties
           }
           role="img"

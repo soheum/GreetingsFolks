@@ -334,17 +334,19 @@ body.envelope-zoom-active footer {
   display: none;
 }
 
-/* Envelope carousel heights — keep ~1.5× center/side ratio across breakpoints
-   (aligned with TopNav height steps: default → sm → md → lg → xl → 2xl).
+/* Envelope carousel / receive heights — keep ~1.5× center/side ratio across
+   breakpoints (aligned with TopNav height steps: default → sm → md → lg → xl → 2xl).
    Mobile uses a taller description chrome; desktop keeps the compact strip. */
-.postcard-stack {
+.postcard-stack,
+.receive-envelope-stage {
   --envelope-center-height: 48vh;
   --envelope-side-height: 32vh;
   --carousel-chrome-offset: 20rem;
 }
 
 @media (min-width: 640px) {
-  .postcard-stack {
+  .postcard-stack,
+  .receive-envelope-stage {
     --envelope-center-height: 52vh;
     --envelope-side-height: 34.5vh;
     --carousel-chrome-offset: 18rem;
@@ -352,7 +354,8 @@ body.envelope-zoom-active footer {
 }
 
 @media (min-width: 768px) {
-  .postcard-stack {
+  .postcard-stack,
+  .receive-envelope-stage {
     --envelope-center-height: 65vh;
     --envelope-side-height: 36.5vh;
     /* Match white panel md:min-h-36 (9rem) — was 10rem and left a gap */
@@ -361,21 +364,24 @@ body.envelope-zoom-active footer {
 }
 
 @media (min-width: 1024px) {
-  .postcard-stack {
+  .postcard-stack,
+  .receive-envelope-stage {
     --envelope-center-height: 65vh;
     --envelope-side-height: 36.5vh;
   }
 }
 
 @media (min-width: 1280px) {
-  .postcard-stack {
+  .postcard-stack,
+  .receive-envelope-stage {
     --envelope-center-height: 61.25vh;
     --envelope-side-height: 40vh;
   }
 }
 
 @media (min-width: 1536px) {
-  .postcard-stack {
+  .postcard-stack,
+  .receive-envelope-stage {
     --envelope-center-height: 63vh;
     --envelope-side-height: 41.5vh;
   }
@@ -485,7 +491,7 @@ body.envelope-zoom-active footer {
   }
 }
 
-/* Receive open: pose → straighten → zoom */
+/* Receive open: fall pose → sender carousel seat → sender zoom (same scale/Y). */
 .receive-envelope-motion {
   position: absolute;
   z-index: 40;
@@ -504,30 +510,36 @@ body.envelope-zoom-active footer {
   transition: none;
 }
 
-/* Center + straighten. Use --frame-scale so tall handoffs (already larger
-   than the fit target) shrink here instead of “zooming out” later. */
+/* Match sender carousel center seat (center-height, bottom 4rem), scale 1. */
 .receive-envelope-motion--framing {
   top: auto;
   bottom: 4rem;
   left: 50%;
-  width: var(--handoff-width);
-  height: var(--handoff-height);
-  transform: translateX(-50%) rotate(0deg) scale(var(--frame-scale, 1));
+  width: calc(
+    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
+  );
+  height: var(--envelope-center-height);
+  transform: translateX(-50%) rotate(0deg) scale(1);
   transition:
     top 600ms cubic-bezier(0.22, 1, 0.36, 1),
     bottom 600ms cubic-bezier(0.22, 1, 0.36, 1),
     left 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 600ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Finish at the receive fit size (center-height × zoom, capped in JS). */
+/* Match sender zoomed write size: same zoomScale + zoomTranslateY. */
 .receive-envelope-motion--zooming {
   top: auto;
   bottom: 4rem;
   left: 50%;
-  width: var(--handoff-width);
-  height: var(--handoff-height);
-  transform: translateX(-50%) rotate(0deg) scale(var(--zoom-scale, 2));
+  width: calc(
+    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
+  );
+  height: var(--envelope-center-height);
+  transform: translateX(-50%) translateY(var(--zoom-translate-y, 0px))
+    rotate(0deg) scale(var(--zoom-scale, 2));
   transition: transform 1300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -535,9 +547,12 @@ body.envelope-zoom-active footer {
   top: auto;
   bottom: 4rem;
   left: 50%;
-  width: var(--handoff-width);
-  height: var(--handoff-height);
-  transform: translateX(-50%) rotate(0deg) scale(var(--zoom-scale, 2));
+  width: calc(
+    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
+  );
+  height: var(--envelope-center-height);
+  transform: translateX(-50%) translateY(var(--zoom-translate-y, 0px))
+    rotate(0deg) scale(var(--zoom-scale, 2));
   transition: none;
 }
 
