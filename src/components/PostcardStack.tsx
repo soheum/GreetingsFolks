@@ -104,6 +104,16 @@ function letterWidthPercent(layer: EnvelopeLayer) {
   return Math.min((layer.widthPercent ?? 50) * LETTER_SIZE_MULTIPLIER, 100);
 }
 
+function letterTopPercent(
+  layer: EnvelopeLayer,
+  seat: "pocketed" | "open" = "open",
+) {
+  if (seat === "pocketed") {
+    return layer.topPercentPocketed ?? layer.topPercent ?? 50;
+  }
+  return layer.topPercent ?? 50;
+}
+
 function addressingEnvelopeScale(envelope: Envelope) {
   const letterLayer = envelope.layers?.find(
     (layer) => layer.anchor === "center",
@@ -672,7 +682,7 @@ function LetterFlipLayer({
   const { t } = useLocale();
   const leftRef = useRef<HTMLTextAreaElement>(null);
   const rightRef = useRef<HTMLTextAreaElement>(null);
-  const topPercent = layer.topPercent ?? 50;
+  const topPercent = letterTopPercent(layer, "open");
   const hasBack = letterHasBack(layer);
   const usesLiftSettle = letterUsesLiftSettle(layer);
   const usesLiftRotateSettle = letterUsesLiftRotateSettle(layer);
@@ -2045,7 +2055,7 @@ function EnvelopeVisual({
                   return null;
                 }
 
-                const topPercent = layer.topPercent ?? 50;
+                const topPercent = letterTopPercent(layer, "pocketed");
                 const hasBack = letterHasBack(layer);
                 const shouldUseLetterLayer =
                   isZoomedEnvelope &&
@@ -2240,7 +2250,7 @@ function EnvelopeVisual({
                     className="absolute left-1/2 top-[var(--letter-top)] h-auto"
                     style={
                       {
-                        "--letter-top": `${Math.max((letterLayer.topPercent ?? 50) - BACK_PEEK_LETTER_TOP_NUDGE, 12)}%`,
+                        "--letter-top": `${Math.max(letterTopPercent(letterLayer, "pocketed") - BACK_PEEK_LETTER_TOP_NUDGE, 12)}%`,
                         width: `${Math.min(letterWidthPercent(letterLayer) * BACK_PEEK_LETTER_SCALE, 100)}%`,
                         transform: `translate(-50%, -50%) rotate(${letterLayer.rotate ?? 0}deg)`,
                       } as CSSProperties

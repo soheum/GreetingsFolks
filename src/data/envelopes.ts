@@ -7,6 +7,11 @@ export type EnvelopeLayer = {
   rotate?: number;
   widthPercent?: number;
   topPercent?: number;
+  /**
+   * Letter seat while still in the pocket (carousel / receive sealed+flap).
+   * Falls back to topPercent when omitted.
+   */
+  topPercentPocketed?: number;
   backSrc?: string;
   backWidth?: number;
   backHeight?: number;
@@ -271,8 +276,10 @@ export const ENVELOPES: readonly Envelope[] = [
         zIndex: 5,
         rotate: -90,
         widthPercent: 58,
-        // Lower % = higher in the pocket (70 sat too low on send)
+        // Open / writing seat (higher in frame)
         topPercent: 62,
+        // Still in the pocket during zoom / sealed (lower so it doesn’t stick out)
+        topPercentPocketed: 70,
         letterOpenMotion: "lift-rotate-flip",
         composeLayout: "single",
         composeInset: "inset-[5%_5%_5%]",

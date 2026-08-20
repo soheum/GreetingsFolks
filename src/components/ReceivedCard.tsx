@@ -156,7 +156,10 @@ function ReceiveLetter({
   message: string;
   mode: "pocketed" | "flipping" | "flipped";
 }) {
-  const topPercent = layer.topPercent ?? 50;
+  const topPercent =
+    mode === "pocketed"
+      ? (layer.topPercentPocketed ?? layer.topPercent ?? 50)
+      : (layer.topPercent ?? 50);
   const hasBack = Boolean(layer.backSrc && layer.backWidth && layer.backHeight);
   const usesLiftSettle = layer.letterOpenMotion === "lift-settle";
   const usesLiftRotateSettle =
@@ -1108,13 +1111,18 @@ function ReceiveEnvelopeOpen({
                 />
               )}
 
-            {/* Keep letter mounted while sealed so flat_10 uses the same
-                center + outside L/R stack as send (not a late single-file mount). */}
-            <ReceiveLetter
-              layer={letterLayer}
-              message={message}
-              mode={letterMode}
-            />
+            {/* flat_10 etc.: keep the closed stack mounted under the seal.
+                flat_2 (and other single letters): hide until the flap opens —
+                showing them during zoom puts the sideways letter out of place. */}
+            {!isSealed ||
+            letterLayer.outsideLeftSrc ||
+            letterLayer.outsideRightSrc ? (
+              <ReceiveLetter
+                layer={letterLayer}
+                message={message}
+                mode={letterMode}
+              />
+            ) : null}
 
             <Image
               src={bottomLayer.src}
