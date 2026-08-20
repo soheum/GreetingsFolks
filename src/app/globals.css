@@ -429,49 +429,51 @@ body.envelope-zoom-active footer {
   opacity: 0 !important;
 }
 
-/* Literal % in keyframes — CSS vars don't interpolate reliably in @keyframes */
+/* Literal % in keyframes — CSS vars don't interpolate reliably in @keyframes.
+   `_post` art is top-heavy in the frame (empty space below the envelope), so
+   these `top` values seat the visual letter at the mail slot — higher % = lower. */
 .letter-fall {
-  top: 36%;
+  top: 42%;
   transform: translate(-50%, -50%) rotate(-20deg);
   animation: letter-fall-mobile 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .letter-fall--done {
-  top: 45%;
+  top: 54%;
   animation: none;
   transform: translate(-50%, -50%) rotate(-8deg);
 }
 
 @keyframes letter-fall-mobile {
   0% {
-    top: 36%;
+    top: 42%;
     transform: translate(-50%, -50%) rotate(-20deg);
   }
 
   100% {
-    top: 45%;
+    top: 54%;
     transform: translate(-50%, -50%) rotate(-8deg);
   }
 }
 
 @media (min-width: 768px) {
   .letter-fall {
-    top: 52%;
+    top: 58%;
     animation-name: letter-fall-desktop;
   }
 
   .letter-fall--done {
-    top: 60%;
+    top: 68%;
   }
 
   @keyframes letter-fall-desktop {
     0% {
-      top: 52%;
+      top: 58%;
       transform: translate(-50%, -50%) rotate(-20deg);
     }
 
     100% {
-      top: 60%;
+      top: 68%;
       transform: translate(-50%, -50%) rotate(-8deg);
     }
   }

@@ -38,8 +38,11 @@ function isSendCardPayload(value: unknown): value is SendCardPayload {
   return value !== null && typeof value === "object";
 }
 
-function parseServiceClass(value: unknown): ServiceClass {
-  return value === "second" ? "second" : "first";
+function parseServiceClass(value: unknown): ServiceClass | null {
+  if (value === "first" || value === "second") {
+    return value;
+  }
+  return null;
 }
 
 function escapeHtml(value: string) {
@@ -284,6 +287,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "Write a message before sending." }, { status: 400 });
   }
 
+  if (!serviceClass) {
+    return Response.json(
+      { error: "Choose a service type before sending." },
+      { status: 400 },
+    );
+  }
+
+  const selectedServiceClass = serviceClass;
+
   if (!cardTitle || !SENDABLE_CARD_IMAGES.has(cardImage)) {
     return Response.json({ error: "This card cannot be sent yet." }, { status: 400 });
   }
@@ -291,7 +303,7 @@ export async function POST(request: Request) {
   const siteOrigin = getSiteOrigin(request);
   const token = crypto.randomUUID().replaceAll("-", "");
   const refNumber = parseRefNumber(json.refNumber) ?? generateRefNumber();
-  const linkDelay = getLinkDelay(serviceClass);
+  const linkDelay = getLinkDelay(selectedServiceClass);
   const cardUrl = `${siteOrigin}/card/${token}`;
   const supabase = createSupabaseAdmin();
 
@@ -319,7 +331,7 @@ export async function POST(request: Request) {
       from: fromEmail,
       to: recipientEmail,
       subject: "Keep an eye on the letterbox – a card’s on its way.",
-      html: buildConfirmationEmail(serviceClass),
+      html: buildConfirmationEmail(selectedServiceClass),
       attachments: confirmationAttachments,
     });
 

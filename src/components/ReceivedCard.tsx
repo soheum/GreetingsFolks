@@ -288,10 +288,16 @@ function ReceiveLetter({
       }`}
       style={composeTextStyle}
     >
-      <div className={composeColumnsClass}>
-        {isSingleColumn ? (
-          <p className="card-message-input h-full min-w-0 flex-1 whitespace-pre-wrap text-neutral-800">
-            {message}
+      <div
+        className={
+          isFoldSplit
+            ? "letter-compose-columns flex w-full flex-col gap-3"
+            : composeColumnsClass
+        }
+      >
+        {isSingleColumn || isFoldSplit ? (
+          <p className="card-message-input min-w-0 whitespace-pre-wrap text-neutral-800">
+            {[left, right].filter(Boolean).join("\n\n") || message}
           </p>
         ) : (
           <>

@@ -2261,7 +2261,8 @@ export function PostcardStack() {
   const [messageRight, setMessageRight] = useState("");
   const [senderName, setSenderName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
-  const [serviceClass, setServiceClass] = useState<ServiceClass>("first");
+  const [serviceClass, setServiceClass] = useState<ServiceClass | null>(null);
+  const [deliveryDaysLabel, setDeliveryDaysLabel] = useState("");
   const [refNumber, setRefNumber] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [successPhase, setSuccessPhase] = useState<SuccessPhase | null>(null);
@@ -2307,7 +2308,8 @@ export function PostcardStack() {
     setMessageRight("");
     setSenderName("");
     setRecipientEmail("");
-    setServiceClass("first");
+    setServiceClass(null);
+    setDeliveryDaysLabel("");
     setRefNumber("");
     setSendError(null);
     setSuccessPhase(null);
@@ -2391,7 +2393,8 @@ export function PostcardStack() {
       setMessageRight("");
       setSenderName("");
       setRecipientEmail("");
-      setServiceClass("first");
+      setServiceClass(null);
+      setDeliveryDaysLabel("");
       setSendError(null);
       setIsTopFlapCompositionReady(false);
 
@@ -2568,6 +2571,7 @@ export function PostcardStack() {
         !zoomedEnvelope?.sendable ||
         !senderName.trim() ||
         !recipientEmail.trim() ||
+        !serviceClass ||
         !hasCardMessage(messageLeft, messageRight)
       ) {
         return;
@@ -2575,6 +2579,9 @@ export function PostcardStack() {
 
       setComposeStage("sending");
       setSendError(null);
+      setDeliveryDaysLabel(
+        serviceClass === "second" ? t.serviceDaysSecond : t.serviceDaysFirst,
+      );
 
       try {
         const response = await fetch("/api/send-card", {
@@ -2629,6 +2636,8 @@ export function PostcardStack() {
       scheduleAction,
       senderName,
       serviceClass,
+      t.serviceDaysFirst,
+      t.serviceDaysSecond,
       zoomedEnvelope,
     ],
   );
@@ -3005,9 +3014,10 @@ export function PostcardStack() {
               <p className="min-w-0 flex-1 text-sm text-neutral-900 [font-family:var(--font-meta)]">
                 {t.cardOnItsWay.replace(
                   "{days}",
-                  serviceClass === "first"
-                    ? t.serviceDaysFirst
-                    : t.serviceDaysSecond,
+                  deliveryDaysLabel ||
+                    (serviceClass === "second"
+                      ? t.serviceDaysSecond
+                      : t.serviceDaysFirst),
                 )}
               </p>
             ) : (
@@ -3025,6 +3035,7 @@ export function PostcardStack() {
                     <label
                       key={option}
                       className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
+                      onClick={() => setServiceClass(option)}
                     >
                       <input
                         type="radio"
@@ -3053,8 +3064,11 @@ export function PostcardStack() {
                 variant="primary"
                 onClick={handleBottomSendCard}
                 disabled={
-                  composeStage === "writing" &&
-                  !hasCardMessage(messageLeft, messageRight)
+                  (composeStage === "writing" &&
+                    !hasCardMessage(messageLeft, messageRight)) ||
+                  ((composeStage === "addressing" ||
+                    composeStage === "sending") &&
+                    !serviceClass)
                 }
               >
                 {composeStage === "sending" && (

@@ -244,7 +244,8 @@ export const ENVELOPES: readonly Envelope[] = [
       outsideWidth: 1847,
       outsideHeight: 1015,
       widthPercent: 100,
-      topPercent: 3,
+      // 0 keeps the close hinge on the pocket seam; positive % drops the fold too low
+      topPercent: 0,
       zIndex: 60,
     },
     layers: [
