@@ -504,15 +504,15 @@ body.envelope-zoom-active footer {
   transition: none;
 }
 
-/* Center + straighten only — keep handoff size so we don't zoom out.
-   Receive seat (lower = further down). Tweak `bottom` here. */
+/* Center + straighten. Use --frame-scale so tall handoffs (already larger
+   than the fit target) shrink here instead of “zooming out” later. */
 .receive-envelope-motion--framing {
   top: auto;
   bottom: 4rem;
   left: 50%;
   width: var(--handoff-width);
   height: var(--handoff-height);
-  transform: translateX(-50%) rotate(0deg) scale(1);
+  transform: translateX(-50%) rotate(0deg) scale(var(--frame-scale, 1));
   transition:
     top 600ms cubic-bezier(0.22, 1, 0.36, 1),
     bottom 600ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -520,8 +520,7 @@ body.envelope-zoom-active footer {
     transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Scale up toward home size (center-height × card zoomScale), capped in JS
-   so opened letters still fit on small screens. */
+/* Finish at the receive fit size (center-height × zoom, capped in JS). */
 .receive-envelope-motion--zooming {
   top: auto;
   bottom: 4rem;

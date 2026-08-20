@@ -19,6 +19,7 @@ import {
   type EnvelopeTopFlap,
 } from "@/data/envelopes";
 import { useLocale } from "@/lib/locale";
+import { canonicalCardImage } from "@/lib/card-images";
 
 const CENTER_HEIGHT = "var(--envelope-center-height)";
 const SIDE_HEIGHT = "var(--envelope-side-height)";
@@ -559,11 +560,7 @@ function envelopeImageSrc(envelope: Envelope) {
     envelope.layers?.find((layer) => layer.anchor === "fill")?.src ??
     envelope.src ??
     "";
-  // flat_1 open fill uses bottom_inside; emails/API still key off flat_1.webp
-  if (fillSrc.includes("/flat_1_bottom_inside")) {
-    return "/images/flat_1.webp";
-  }
-  return fillSrc;
+  return canonicalCardImage(fillSrc);
 }
 
 function isFlat1Envelope(envelope: Envelope) {

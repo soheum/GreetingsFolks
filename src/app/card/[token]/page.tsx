@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ReceivedCard } from "@/components/ReceivedCard";
 import { TopNav } from "@/components/TopNav";
 import { ENVELOPES } from "@/data/envelopes";
+import { canonicalCardImage } from "@/lib/card-images";
 import {
   createSupabaseAdmin,
   type SentCard,
@@ -15,9 +16,15 @@ function findEnvelope(cardImage: string) {
       return true;
     }
 
-    return envelope.layers?.some(
-      (layer) => layer.anchor === "fill" && layer.src === cardImage,
-    );
+    const fillSrc = envelope.layers?.find(
+      (layer) => layer.anchor === "fill",
+    )?.src;
+    if (!fillSrc) {
+      return false;
+    }
+
+    // Match fill art or the canonical send/API key (flat_1 → flat_1.webp)
+    return fillSrc === cardImage || canonicalCardImage(fillSrc) === cardImage;
   });
 }
 

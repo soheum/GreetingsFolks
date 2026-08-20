@@ -4,6 +4,17 @@ export function cardImageNumber(cardImage: string) {
   return cardImage.match(/flat_?(\d+)/i)?.[1] ?? "";
 }
 
+/**
+ * Image key used in sent_cards / the send API.
+ * flat_1's open fill is bottom_inside; emails and storage still use flat_1.webp.
+ */
+export function canonicalCardImage(fillOrCardSrc: string) {
+  if (fillOrCardSrc.includes("/flat_1_bottom_inside")) {
+    return "/images/flat_1.webp";
+  }
+  return fillOrCardSrc;
+}
+
 /** Confirmation email closed envelope: flat_1.webp → flat_1_closed.webp */
 export function closedEnvelopeImage(cardImage: string) {
   const file = cardImage.split("/").at(-1) ?? "";
