@@ -1524,7 +1524,8 @@ body.envelope-zoom-active footer {
 
 .letter-flip-card.letter-flip-card--receive-done {
   animation: none;
-  transform: translateY(-32%) rotateY(180deg) scale(1);
+  /* Settle upward from the flip height (was -32%, which dropped the letter) */
+  transform: translateY(-52%) rotateY(180deg) scale(1);
 }
 
 .letter-flip-scene--elevated {
@@ -2495,7 +2496,7 @@ body.envelope-zoom-active footer {
   }
 }
 
-/* Receive: lift up, flip, then a small Y settle to match send writing pose */
+/* Receive: lift, flip at height, then settle further up (not back down) */
 @keyframes letter-lift-then-flip-receive {
   0% {
     transform: translateY(0) rotateY(0deg) scale(1);
@@ -2518,7 +2519,7 @@ body.envelope-zoom-active footer {
   }
 
   100% {
-    transform: translateY(-32%) rotateY(180deg) scale(1);
+    transform: translateY(-52%) rotateY(180deg) scale(1);
   }
 }
 

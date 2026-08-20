@@ -27,8 +27,10 @@ const LETTER_LEFT_FLAP_OPEN_MS = 1400;
 
 /** Match PostcardStack letter sizing while writing */
 const LETTER_SIZE_MULTIPLIER = 1.125;
-/** Extra downward offset for the sealed see-through letter (percent of envelope height) */
+/** Extra Y for sealed see-through letter (percent of envelope height).
+ * Positive = lower. flat_8 sits too low with the shared nudge. */
 const SEALED_LETTER_TOP_NUDGE = 8;
+const SEALED_LETTER_TOP_NUDGE_FLAT_8 = -4;
 
 type ReceiveStage =
   | "framing"
@@ -72,8 +74,13 @@ function ReceiveTopFlap({
 }) {
   const widthPercent = flap.widthPercent ?? 100;
   const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
+  const isFlat8Flap = flap.outsideSrc.includes("/flat_8_");
   // Receive seat: flat_2 flap sits a touch high vs the pocket — nudge down (send fold keeps 0).
-  const topPercent = (flap.topPercent ?? 0) + (isFlat2Flap ? 2.5 : 0);
+  // flat_8 open inside sits a touch high — nudge down once the flap is open.
+  const topPercent =
+    (flap.topPercent ?? 0) +
+    (isFlat2Flap ? 2.5 : 0) +
+    (isFlat8Flap && mode === "open" ? 2 : 0);
   // Match PostcardStack flat_10 seam (same inset sealed + open)
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
   // flat_2: no open flap art — hide the whole flap once open
@@ -815,6 +822,14 @@ function ReceiveLetter({
       ? "letter-flip-card letter-flip-card--receive block h-auto w-full"
       : "letter-flip-card letter-flip-card--receive-done block h-auto w-full";
 
+  // flat_8 reading seat: pocket topPercent is low; raise while flipping/reading
+  // so the back settles nearer the envelope center (still left-1/2 centered).
+  const flipTopPercent =
+    (mode === "flipping" || mode === "flipped") &&
+    layer.src.includes("/flat_8_")
+      ? Math.min(topPercent, 58)
+      : topPercent;
+
   return (
     <div
       className={`letter-flip-scene letter-flip-scene--receive absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
@@ -822,7 +837,7 @@ function ReceiveLetter({
       }`}
       style={
         {
-          "--letter-top": `${topPercent}%`,
+          "--letter-top": `${flipTopPercent}%`,
           "--letter-z-base": layer.zIndex,
           "--letter-z-top": 50,
           "--letter-open-scale": 1,
@@ -1074,7 +1089,16 @@ function ReceiveEnvelopeOpen({
                     className="pointer-events-none absolute left-1/2 top-[var(--letter-top)] z-[70] opacity-20"
                     style={
                       {
-                        "--letter-top": `${Math.min((letterLayer.topPercent ?? 50) + SEALED_LETTER_TOP_NUDGE, 88)}%`,
+                        "--letter-top": `${Math.min(
+                          Math.max(
+                            (letterLayer.topPercent ?? 50) +
+                              (letterLayer.src.includes("/flat_8_")
+                                ? SEALED_LETTER_TOP_NUDGE_FLAT_8
+                                : SEALED_LETTER_TOP_NUDGE),
+                            0,
+                          ),
+                          88,
+                        )}%`,
                         width: `${letterWidthPercent(letterLayer)}%`,
                         transform: `translate(-50%, -50%) rotate(${letterLayer.rotate ?? 0}deg)`,
                       } as CSSProperties
