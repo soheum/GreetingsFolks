@@ -510,10 +510,10 @@ function ReceiveLetter({
     }
 
     if (usesLiftRotateRight) {
-      const sceneClass =
-        mode === "flipped"
-          ? "letter-flip-scene--elevated"
-          : "letter-lift-rotate-right-scene";
+      // Keep lift-rotate-right-scene when done so compose-frame CSS still applies.
+      const sceneClass = `letter-lift-rotate-right-scene${
+        mode === "flipped" ? " letter-flip-scene--elevated" : ""
+      }`;
       const doneClass =
         mode === "flipped" ? " letter-lift-rotate-right-card--done" : "";
 
@@ -544,17 +544,18 @@ function ReceiveLetter({
                   className="h-auto w-full"
                 />
               </div>
-            </div>
-            <div
-              className="letter-lift-rotate-right-compose-frame"
-              style={
-                {
-                  "--letter-w": layer.width,
-                  "--letter-h": layer.height,
-                } as CSSProperties
-              }
-            >
-              {messageFields}
+              {/* Inside spin (−90°): text turns with the letter into landscape */}
+              <div
+                className="letter-lift-rotate-right-compose-frame"
+                style={
+                  {
+                    "--letter-w": layer.width,
+                    "--letter-h": layer.height,
+                  } as CSSProperties
+                }
+              >
+                {messageFields}
+              </div>
             </div>
           </div>
         </div>
@@ -987,7 +988,9 @@ function ReceiveEnvelopeOpen({
 
   // Match home zoom intent (center-height × card zoomScale), but cap to the
   // available receive viewport so opened letters aren't clipped on small screens.
-  const zoomScaleFactor = envelope.zoomScale ?? 2;
+  // Allow scale < 1 — tall cards' handoff box can already exceed the fit target.
+  const zoomScaleFactor =
+    envelope.receiveZoomScale ?? envelope.zoomScale ?? 2;
   const viewportH =
     viewportSize.height ||
     (typeof window !== "undefined" ? window.innerHeight : 800);
@@ -999,12 +1002,20 @@ function ReceiveEnvelopeOpen({
     (typeof window !== "undefined" ? window.innerHeight : viewportH) *
     centerHeightRatio *
     zoomScaleFactor;
-  // Tall portraits (flat_10) need a lower fit so they don't fill the whole stage
+  // Tall portraits (flat_10) + side-flap lift need extra headroom so the
+  // opened letter isn't clipped at the top of the stage.
   const envelopeAspect = envelope.height / envelope.width;
-  const maxFitRatio = envelopeAspect > 1.8 ? 0.58 : 0.78;
+  const opensSideFlaps = Boolean(
+    letterLayer.outsideLeftSrc && letterLayer.outsideRightSrc,
+  );
+  const needsOpenHeadroom =
+    opensSideFlaps || letterLayer.letterOpenMotion === "lift-rotate-right";
+  const maxFitRatio =
+    envelopeAspect > 1.8 ? (needsOpenHeadroom ? 0.4 : 0.48) : 0.78;
   const maxFitHeight = viewportH * maxFitRatio;
   const targetHeightPx = Math.min(desiredHeightPx, maxFitHeight);
-  const zoomScale = Math.max(targetHeightPx / handoffHeight, 1);
+  const zoomScale =
+    handoffHeight > 0 ? targetHeightPx / handoffHeight : 1;
 
   return (
     <section className="relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
@@ -1039,6 +1050,27 @@ function ReceiveEnvelopeOpen({
                 priority
                 style={{ zIndex: fillLayer.zIndex }}
                 className="receive-envelope-fill pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
+              />
+            ) : null}
+
+            {/* Match send carousel: back sits under the letter (fill skipped for flat_10) */}
+            {flap.backSrc && flap.backWidth && flap.backHeight ? (
+              <Image
+                src={flap.backSrc}
+                alt=""
+                aria-hidden
+                width={flap.backWidth}
+                height={flap.backHeight}
+                priority
+                style={{
+                  zIndex: 0,
+                  bottom: flap.backSrc.includes("/flat_10_")
+                    ? "0cqh"
+                    : undefined,
+                }}
+                className={`pointer-events-none absolute left-0 z-0 h-auto w-full ${
+                  flap.backSrc.includes("/flat_10_") ? "" : "bottom-2"
+                }`}
               />
             ) : null}
 

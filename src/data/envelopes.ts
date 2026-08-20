@@ -99,6 +99,8 @@ export type Envelope = {
   sendable?: boolean;
   /** Envelope zoom when opening to write (default 2). Lower for taller letters. */
   zoomScale?: number;
+  /** Receive-page zoom override (falls back to zoomScale, then 2). */
+  receiveZoomScale?: number;
   /** Extra upward shift while zoomed (e.g. "-16vh"). */
   zoomTranslateY?: string;
   topFlap?: EnvelopeTopFlap;
@@ -578,6 +580,8 @@ export const ENVELOPES: readonly Envelope[] = [
     height: 2728,
     featured: false,
     sendable: true,
+    // Tall portrait + landscape open needs a tighter receive zoom
+    receiveZoomScale: 0.85,
     zoomTranslateY: "-13vh",
     topFlap: {
       insideSrc: "/images/flat_9_top_inside.webp",
@@ -634,8 +638,9 @@ export const ENVELOPES: readonly Envelope[] = [
     height: 3324,
     featured: false,
     sendable: true,
-    // Tall portrait — keep receive/home zoom smaller than the default 2
-    zoomScale: 1.25,
+    // Home/send keeps default zoomScale (2). Receive must stay smaller —
+    // tall art + side-flap open overflows the stage at ~1+.
+    receiveZoomScale: 0.85,
     zoomTranslateY: "-13vh",
     topFlap: {
       insideSrc: "/images/flat_10_top_inside.webp",
