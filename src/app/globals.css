@@ -491,22 +491,25 @@ body.envelope-zoom-active footer {
   }
 }
 
-/* Receive open: fall pose → sender carousel seat → sender zoom (same scale/Y). */
+/* Receive open: fall pose (carousel seat size) → center → sender zoom. */
 .receive-envelope-motion {
   position: absolute;
   z-index: 40;
-  top: var(--handoff-top);
-  left: var(--handoff-left);
-  width: var(--handoff-width);
-  height: var(--handoff-height);
+  /* Same box as sender carousel center from the first handoff frame */
+  width: calc(
+    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
+  );
+  height: var(--envelope-center-height);
   aspect-ratio: var(--envelope-aspect);
-  transform: rotate(var(--fall-rotate, -8deg));
   transform-origin: center center;
   perspective: 1400px;
-  will-change: top, left, width, height, transform;
+  will-change: top, left, bottom, transform;
 }
 
 .receive-envelope-motion--handoff {
+  top: var(--handoff-center-y);
+  left: var(--handoff-center-x);
+  transform: translate(-50%, -50%) rotate(var(--fall-rotate, -8deg));
   transition: none;
 }
 
@@ -515,17 +518,11 @@ body.envelope-zoom-active footer {
   top: auto;
   bottom: 4rem;
   left: 50%;
-  width: calc(
-    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
-  );
-  height: var(--envelope-center-height);
   transform: translateX(-50%) rotate(0deg) scale(1);
   transition:
     top 600ms cubic-bezier(0.22, 1, 0.36, 1),
     bottom 600ms cubic-bezier(0.22, 1, 0.36, 1),
     left 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 600ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -534,10 +531,6 @@ body.envelope-zoom-active footer {
   top: auto;
   bottom: 4rem;
   left: 50%;
-  width: calc(
-    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
-  );
-  height: var(--envelope-center-height);
   transform: translateX(-50%) translateY(var(--zoom-translate-y, 0px))
     rotate(0deg) scale(var(--zoom-scale, 2));
   transition: transform 1300ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -547,10 +540,6 @@ body.envelope-zoom-active footer {
   top: auto;
   bottom: 4rem;
   left: 50%;
-  width: calc(
-    var(--envelope-center-height) * var(--envelope-w) / var(--envelope-h)
-  );
-  height: var(--envelope-center-height);
   transform: translateX(-50%) translateY(var(--zoom-translate-y, 0px))
     rotate(0deg) scale(var(--zoom-scale, 2));
   transition: none;

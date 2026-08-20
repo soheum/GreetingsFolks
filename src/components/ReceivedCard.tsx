@@ -976,13 +976,12 @@ function ReceiveEnvelopeOpen({
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  // Handoff starts from the fallen letter box; framing/zoom then match the
-  // sender carousel seat (--envelope-center-height) + zoomScale / zoomTranslateY.
-  const handoffWidth = pose.width;
-  const handoffHeight = pose.width * (envelope.height / envelope.width);
-  const handoffLeft = pose.left - viewportOrigin.left;
-  const handoffTop =
-    pose.top - viewportOrigin.top - (handoffHeight - pose.height) * 1.2;
+  // Handoff keeps fall-letter position/rotation but already uses the sender
+  // carousel seat size (--envelope-center-height). Framing only recenters.
+  const handoffCenterX =
+    pose.left - viewportOrigin.left + pose.width / 2;
+  const handoffCenterY =
+    pose.top - viewportOrigin.top + pose.height / 2;
   const zoomScale = envelope.zoomScale ?? 2;
   const zoomTranslateY = envelope.zoomTranslateY ?? "0px";
 
@@ -993,10 +992,8 @@ function ReceiveEnvelopeOpen({
           className={`receive-envelope-motion ${motionClassForStage(stage)}`}
           style={
             {
-              "--handoff-top": `${handoffTop}px`,
-              "--handoff-left": `${handoffLeft}px`,
-              "--handoff-width": `${handoffWidth}px`,
-              "--handoff-height": `${handoffHeight}px`,
+              "--handoff-center-x": `${handoffCenterX}px`,
+              "--handoff-center-y": `${handoffCenterY}px`,
               "--envelope-aspect": `${envelope.width} / ${envelope.height}`,
               "--envelope-w": envelope.width,
               "--envelope-h": envelope.height,
