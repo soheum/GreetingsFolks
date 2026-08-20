@@ -87,7 +87,6 @@ function ReceiveTopFlap({
   if (isFlat2Flap && mode === "open") {
     return null;
   }
-  const showInside = mode === "open";
 
   const modeClass =
     mode === "closed"
@@ -109,17 +108,16 @@ function ReceiveTopFlap({
       }
     >
       <div className="envelope-top-flap-card h-full w-full">
-        {showInside ? (
-          <Image
-            src={flap.insideSrc}
-            alt=""
-            aria-hidden
-            width={flap.insideWidth}
-            height={flap.insideHeight}
-            priority
-            className="envelope-top-flap-face h-auto w-full"
-          />
-        ) : null}
+        {/* Always mount inside (like send) so the open rotation has a face */}
+        <Image
+          src={flap.insideSrc}
+          alt=""
+          aria-hidden
+          width={flap.insideWidth}
+          height={flap.insideHeight}
+          priority
+          className="envelope-top-flap-face h-auto w-full"
+        />
         {/* Drop outside once fully open — sealed/opening still need it for the fold */}
         {mode !== "open" ? (
           <div className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full">
@@ -822,14 +820,6 @@ function ReceiveLetter({
       ? "letter-flip-card letter-flip-card--receive block h-auto w-full"
       : "letter-flip-card letter-flip-card--receive-done block h-auto w-full";
 
-  // flat_8 reading seat: pocket topPercent is low; raise while flipping/reading
-  // so the back settles nearer the envelope center (still left-1/2 centered).
-  const flipTopPercent =
-    (mode === "flipping" || mode === "flipped") &&
-    layer.src.includes("/flat_8_")
-      ? Math.min(topPercent, 58)
-      : topPercent;
-
   return (
     <div
       className={`letter-flip-scene letter-flip-scene--receive absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0 ${
@@ -837,7 +827,7 @@ function ReceiveLetter({
       }`}
       style={
         {
-          "--letter-top": `${flipTopPercent}%`,
+          "--letter-top": `${topPercent}%`,
           "--letter-z-base": layer.zIndex,
           "--letter-z-top": 50,
           "--letter-open-scale": 1,
@@ -963,10 +953,13 @@ function ReceiveEnvelopeOpen({
   const letterMode = letterModeForStage(stage);
   const isSealed = flapMode === "closed";
   const baseReady = flapMode === "opening" || flapMode === "open";
-  // Closed look = bottom + top_outside + sticker (not fill — fill fights the sealed flap)
-  // flat_10 open also skips fill so the seam stays on back + bottom
+  // Closed look = bottom + top_outside + sticker (not fill — fill fights the sealed flap).
+  // flat_8: skip full fill when open so top_inside isn't fighting flat_8.webp.
+  // flat_10: keep its existing open skip (separate seam issue — leave alone).
   const showFill =
-    !isSealed && !fillLayer.src.includes("/flat_10.webp");
+    !isSealed &&
+    !fillLayer.src.includes("/flat_8.webp") &&
+    !fillLayer.src.includes("/flat_10.webp");
 
   const showBottomBar =
     stage === "framing" ||
@@ -1121,7 +1114,7 @@ function ReceiveEnvelopeOpen({
                   style={
                     {
                       top: flap.outsideSrc.includes("/flat_10_")
-                        ? "8cqh"
+                        ? "4cqh"
                         : `${flap.topPercent ?? 0}%`,
                       width: `${flap.widthPercent ?? 100}%`,
                       aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,

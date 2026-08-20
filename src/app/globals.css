@@ -1911,8 +1911,8 @@ body.envelope-zoom-active footer {
   position: relative;
   transform-origin: center 96%;
   transform-style: preserve-3d;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  /* Don't hide the card element mid-rotateX — only faces use backface-visibility
+     (hiding the card blanked flat_1 / flat_10 receive opens). */
   will-change: transform;
 }
 
@@ -1967,12 +1967,14 @@ body.envelope-zoom-active footer {
 }
 
 .envelope-top-flap--opening .envelope-top-flap-face:not(.envelope-top-flap-face--outside) {
-  /* Keep inside hidden for the whole open rotation — only show when fully open */
-  opacity: 0;
+  /* Keep inside visible during the open rotation — backface-visibility
+     swaps faces; hiding it left a blank flap mid-flip (flat_1 / flat_10 receive). */
+  opacity: 1;
 }
 
 .envelope-top-flap--opening .envelope-top-flap-face--outside {
-  animation: envelope-top-flap-outside-hide 700ms ease-in-out forwards;
+  /* Don't fade outside out mid-rotation; 3D backface handles the handoff */
+  opacity: 1;
 }
 
 @keyframes envelope-top-flap-close {
