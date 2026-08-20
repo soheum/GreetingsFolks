@@ -281,6 +281,29 @@ function letterClosedStack(
   const hingedLeft = Boolean(
     options?.hingedLeft && letterHasLeftFlapOpen(layer),
   );
+  const hasClosedCover = Boolean(
+    layer.closedCoverSrc &&
+      layer.closedCoverWidth &&
+      layer.closedCoverHeight,
+  );
+
+  // Single closed pack (e.g. flat_10_letter.webp) when not hinging open yet
+  if (hasClosedCover && !hingedRight && !hingedLeft) {
+    return (
+      <>
+        <Image
+          src={layer.closedCoverSrc!}
+          alt=""
+          aria-hidden
+          width={layer.closedCoverWidth}
+          height={layer.closedCoverHeight}
+          priority={priority}
+          className="h-auto w-full"
+        />
+        {children}
+      </>
+    );
+  }
 
   if (!hasOutside) {
     return (
@@ -396,6 +419,17 @@ function letterClosedStack(
           height={layer.outsideRightHeight}
           priority={priority}
           className="letter-closed-stack__layer letter-closed-stack__right"
+        />
+      ) : null}
+      {hasClosedCover && (hingedRight || hingedLeft) ? (
+        <Image
+          src={layer.closedCoverSrc!}
+          alt=""
+          aria-hidden
+          width={layer.closedCoverWidth}
+          height={layer.closedCoverHeight}
+          priority={priority}
+          className="letter-closed-cover"
         />
       ) : null}
     </div>
@@ -2205,11 +2239,11 @@ function EnvelopeVisual({
                   }}
                 >
                   <Image
-                    src={letterLayer.src}
+                    src={letterLayer.closedCoverSrc ?? letterLayer.src}
                     alt=""
                     aria-hidden
-                    width={letterLayer.width}
-                    height={letterLayer.height}
+                    width={letterLayer.closedCoverWidth ?? letterLayer.width}
+                    height={letterLayer.closedCoverHeight ?? letterLayer.height}
                     priority={priority}
                     className="absolute left-1/2 top-[var(--letter-top)] h-auto"
                     style={

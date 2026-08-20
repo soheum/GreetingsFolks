@@ -74,13 +74,8 @@ function ReceiveTopFlap({
 }) {
   const widthPercent = flap.widthPercent ?? 100;
   const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
-  const isFlat8Flap = flap.outsideSrc.includes("/flat_8_");
   // Receive seat: flat_2 flap sits a touch high vs the pocket — nudge down (send fold keeps 0).
-  // flat_8 open inside sits a touch high — nudge down once the flap is open.
-  const topPercent =
-    (flap.topPercent ?? 0) +
-    (isFlat2Flap ? 2.5 : 0) +
-    (isFlat8Flap && mode === "open" ? 2 : 0);
+  const topPercent = (flap.topPercent ?? 0) + (isFlat2Flap ? 2.5 : 0);
   // Match PostcardStack flat_10 seam (same inset sealed + open)
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
   // flat_2: no open flap art — hide the whole flap once open
@@ -225,6 +220,10 @@ function ReceiveLetter({
     layer.composeShape === "taper-heave";
 
   if (mode === "pocketed") {
+    const coverSrc = layer.closedCoverSrc ?? layer.src;
+    const coverWidth = layer.closedCoverWidth ?? layer.width;
+    const coverHeight = layer.closedCoverHeight ?? layer.height;
+
     return (
       <div
         className="absolute left-1/2 top-[var(--letter-top)] border-0 bg-transparent p-0"
@@ -238,11 +237,11 @@ function ReceiveLetter({
         }
       >
         <Image
-          src={layer.src}
+          src={coverSrc}
           alt=""
           aria-hidden
-          width={layer.width}
-          height={layer.height}
+          width={coverWidth}
+          height={coverHeight}
           priority
           className="h-auto w-full"
         />
@@ -641,6 +640,11 @@ function ReceiveLetter({
           layer.insideLeftHeight,
       );
       const opensSideFlaps = opensRightFlap || opensLeftFlap;
+      const hasClosedCover = Boolean(
+        layer.closedCoverSrc &&
+          layer.closedCoverWidth &&
+          layer.closedCoverHeight,
+      );
       const sceneClass =
         mode === "flipped"
           ? `letter-flip-scene--elevated${
@@ -775,6 +779,19 @@ function ReceiveLetter({
                   height={layer.outsideRightHeight}
                   priority
                   className="letter-closed-stack__layer letter-closed-stack__right"
+                />
+              ) : null}
+              {hasClosedCover && opensSideFlaps ? (
+                <Image
+                  src={layer.closedCoverSrc!}
+                  alt=""
+                  aria-hidden
+                  width={layer.closedCoverWidth}
+                  height={layer.closedCoverHeight}
+                  priority
+                  className={`letter-closed-cover${
+                    mode === "flipped" ? " letter-closed-cover--done" : ""
+                  }`}
                 />
               ) : null}
             </div>

@@ -748,6 +748,42 @@ body.envelope-zoom-active footer {
   transform: translateY(-28%) scale(1);
 }
 
+/* flat_10: single closed pack covers the panel stack during lift, then
+   fades out as the side flaps begin to open. */
+.letter-closed-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  object-position: center center;
+  pointer-events: none;
+  animation: letter-closed-cover-exit var(--letter-lift-settle-duration)
+    var(--letter-lift-settle-easing) forwards;
+}
+
+.letter-closed-cover--done,
+.letter-lift-settle-card--done .letter-closed-cover {
+  animation: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+@keyframes letter-closed-cover-exit {
+  0%,
+  88% {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 /* Right opens first (after settle), then left */
 .letter-lift-settle-scene--side-flaps .letter-right-flap-inner {
   animation: letter-right-flap-open var(--letter-right-flap-duration)

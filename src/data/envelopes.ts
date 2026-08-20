@@ -64,6 +64,13 @@ export type EnvelopeLayer = {
   outsideLeftSrc?: string;
   outsideLeftWidth?: number;
   outsideLeftHeight?: number;
+  /**
+   * Optional single closed-letter cover (e.g. flat_10_letter.webp).
+   * Shown while pocketed / lifting; side flaps take over after settle.
+   */
+  closedCoverSrc?: string;
+  closedCoverWidth?: number;
+  closedCoverHeight?: number;
   /** Extra scale applied to the letter while writing/opening. */
   letterWriteScale?: number;
 };
@@ -669,6 +676,10 @@ export const ENVELOPES: readonly Envelope[] = [
         composeLayout: "single",
         composeInset: "inset-[0%_4%_0%_4%]",
         composeFontSize: "4.7cqw",
+        // Single closed pack while lifting; side panels open after settle
+        closedCoverSrc: "/images/flat_10_letter.webp",
+        closedCoverWidth: 1165,
+        closedCoverHeight: 1721,
         outsideRightSrc: "/images/flat_10_letter_outside_right.webp",
         outsideRightWidth: 1136,
         outsideRightHeight: 1837,
