@@ -259,7 +259,7 @@ function letterHasLeftFlapOpen(layer: EnvelopeLayer) {
   );
 }
 
-/** Closed stack: center → left → right (right on top so it opens first). */
+/** Closed stack: center → right → left (left on top; right still opens first). */
 function letterClosedStack(
   layer: EnvelopeLayer,
   priority?: boolean,
@@ -287,7 +287,7 @@ function letterClosedStack(
       layer.closedCoverHeight,
   );
 
-  // Single closed pack (e.g. flat_10_letter.webp) when not hinging open yet
+  // Optional single closed pack when not hinging open yet
   if (hasClosedCover && !hingedRight && !hingedLeft) {
     return (
       <>
@@ -419,17 +419,6 @@ function letterClosedStack(
           height={layer.outsideRightHeight}
           priority={priority}
           className="letter-closed-stack__layer letter-closed-stack__right"
-        />
-      ) : null}
-      {hasClosedCover && (hingedRight || hingedLeft) ? (
-        <Image
-          src={layer.closedCoverSrc!}
-          alt=""
-          aria-hidden
-          width={layer.closedCoverWidth}
-          height={layer.closedCoverHeight}
-          priority={priority}
-          className="letter-closed-cover"
         />
       ) : null}
     </div>
@@ -1161,12 +1150,6 @@ function LetterFlipLayer({
                     }
                   />
                 </div>
-                <div
-                  className={composeClassName}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {composeFields}
-                </div>
               </div>
 
               <div className="letter-tri-fold-left">
@@ -1220,6 +1203,14 @@ function LetterFlipLayer({
                   priority={priority}
                   className="h-auto w-full"
                 />
+              </div>
+
+              {/* Above flaps/cover so text is visible immediately */}
+              <div
+                className={`${composeClassName} letter-tri-fold-compose`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {composeFields}
               </div>
             </div>
           </div>
@@ -1309,13 +1300,14 @@ function LetterFlipLayer({
                   priority={priority}
                   className="h-auto w-full"
                 />
-                <div
-                  className={composeClassName}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {composeFields}
-                </div>
               </div>
+            </div>
+            {/* Outside the fold grid so text is not clipped/hidden until expand */}
+            <div
+              className={composeClassName}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {composeFields}
             </div>
           </div>
         </div>
@@ -2239,11 +2231,11 @@ function EnvelopeVisual({
                   }}
                 >
                   <Image
-                    src={letterLayer.closedCoverSrc ?? letterLayer.src}
+                    src={letterLayer.src}
                     alt=""
                     aria-hidden
-                    width={letterLayer.closedCoverWidth ?? letterLayer.width}
-                    height={letterLayer.closedCoverHeight ?? letterLayer.height}
+                    width={letterLayer.width}
+                    height={letterLayer.height}
                     priority={priority}
                     className="absolute left-1/2 top-[var(--letter-top)] h-auto"
                     style={

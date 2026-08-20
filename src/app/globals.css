@@ -647,16 +647,16 @@ body.envelope-zoom-active footer {
 }
 
 .letter-closed-stack__left {
-  z-index: 1;
-}
-
-.letter-closed-stack__right {
   z-index: 2;
 }
 
-/* Compose sits above center, under the outside flaps */
+.letter-closed-stack__right {
+  z-index: 1;
+}
+
+/* Compose sits above center and above outside flaps so text is visible immediately */
 .letter-closed-stack .letter-compose {
-  z-index: 0;
+  z-index: 5;
 }
 
 /* Side flaps: outside + inside faces */
@@ -669,11 +669,11 @@ body.envelope-zoom-active footer {
 }
 
 .letter-right-flap {
-  z-index: 2;
+  z-index: 1;
 }
 
 .letter-left-flap {
-  z-index: 1;
+  z-index: 2;
 }
 
 .letter-right-flap-inner,
@@ -748,43 +748,7 @@ body.envelope-zoom-active footer {
   transform: translateY(-28%) scale(1);
 }
 
-/* flat_10: single closed pack covers the panel stack during lift, then
-   fades out as the side flaps begin to open. */
-.letter-closed-cover {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
-  object-position: center center;
-  pointer-events: none;
-  animation: letter-closed-cover-exit var(--letter-lift-settle-duration)
-    var(--letter-lift-settle-easing) forwards;
-}
-
-.letter-closed-cover--done,
-.letter-lift-settle-card--done .letter-closed-cover {
-  animation: none;
-  opacity: 0;
-  visibility: hidden;
-}
-
-@keyframes letter-closed-cover-exit {
-  0%,
-  88% {
-    opacity: 1;
-    visibility: visible;
-  }
-
-  100% {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-
-/* Right opens first (after settle), then left */
+/* Right still opens first (after settle), then left — even though left sits on top when closed. */
 .letter-lift-settle-scene--side-flaps .letter-right-flap-inner {
   animation: letter-right-flap-open var(--letter-right-flap-duration)
     var(--letter-lift-settle-easing) var(--letter-lift-settle-duration)
@@ -826,17 +790,6 @@ body.envelope-zoom-active footer {
   100% {
     transform: rotateY(-180deg);
   }
-}
-
-.letter-lift-settle-scene .letter-compose--ready {
-  animation-delay: 1950ms;
-}
-
-.letter-lift-settle-scene--side-flaps .letter-compose--ready {
-  animation-delay: calc(
-    var(--letter-lift-settle-duration) + var(--letter-right-flap-duration) +
-      var(--letter-left-flap-duration) - 200ms
-  );
 }
 
 /* flat_9: upright letter lifts, then rotates 90° clockwise for writing */
@@ -896,11 +849,6 @@ body.envelope-zoom-active footer {
 .letter-lift-rotate-right-spin--done {
   animation: none;
   transform: rotate(90deg);
-}
-
-/* Appear as the spin starts (~38% of 2800ms) so text rotates with the letter */
-.letter-lift-rotate-right-scene .letter-compose--ready {
-  animation-delay: 1000ms;
 }
 
 .letter-lift-rotate-right-mover--lift {
@@ -983,10 +931,6 @@ body.envelope-zoom-active footer {
   transform: rotate(90deg);
 }
 
-.letter-lift-rotate-settle-scene .letter-compose--ready {
-  animation-delay: 2100ms;
-}
-
 /* flat_2: lift + upright rotate, then Y-flip to the letter back */
 .letter-lift-rotate-settle-scene--flip {
   --letter-lift-rotate-settle-duration: 4200ms;
@@ -1021,10 +965,6 @@ body.envelope-zoom-active footer {
 .letter-lift-rotate-flip-card--done {
   animation: none;
   transform: rotateY(180deg);
-}
-
-.letter-lift-rotate-settle-scene--flip .letter-compose--ready {
-  animation-delay: 3200ms;
 }
 
 /* Receive reading: after elevated open, ease down so the upright letter
@@ -1146,7 +1086,7 @@ body.envelope-zoom-active footer {
 .letter-fold-opened {
   display: grid;
   grid-template-rows: 0fr;
-  opacity: 0;
+  opacity: 1;
   animation: letter-fold-opened-enter var(--letter-fold-open-duration)
     var(--letter-fold-open-easing) forwards;
 }
@@ -1157,11 +1097,6 @@ body.envelope-zoom-active footer {
   min-height: 0;
   /* Font size (cqw) measures the letter card, not the inset write box */
   container-type: inline-size;
-}
-
-.letter-fold-open-scene .letter-compose--ready {
-  /* Sync with inside open (~40% of 6000ms fold-open) */
-  animation-delay: 2400ms;
 }
 
 .letter-fold-open-card--done .letter-fold-open-mover,
@@ -1301,8 +1236,8 @@ body.envelope-zoom-active footer {
   width: var(--tri-center-pct);
   z-index: 1;
   overflow: hidden;
-  opacity: 0;
-  visibility: hidden;
+  opacity: 1;
+  visibility: visible;
   animation: letter-tri-fold-panels-reveal var(--letter-tri-fold-duration)
     var(--letter-tri-fold-easing) forwards;
 }
@@ -1375,10 +1310,6 @@ body.envelope-zoom-active footer {
   display: block;
   height: auto;
   max-width: none;
-}
-
-.letter-tri-fold-scene .letter-compose--ready {
-  animation-delay: 2600ms;
 }
 
 .letter-tri-fold-scene--done {
@@ -1493,19 +1424,13 @@ body.envelope-zoom-active footer {
 /* Center + right shells stay invisible through lift */
 @keyframes letter-tri-fold-panels-reveal {
   0%,
-  18% {
-    opacity: 0;
-    visibility: hidden;
-  }
-
-  22%,
   100% {
     opacity: 1;
     visibility: visible;
   }
 }
 
-/* Closed cover (flat_10_letter) is the only letter art during lift */
+/* Tri-fold: closed pack fades after lift; open panels take over */
 @keyframes letter-tri-fold-closed-fade {
   0%,
   18% {
@@ -1581,8 +1506,8 @@ body.envelope-zoom-active footer {
 }
 
 .letter-compose {
-  transform: translateY(0.75rem);
-  opacity: 0;
+  transform: translateY(0);
+  opacity: 1;
   /* Text scales with the write area so capacity stays stable across viewports */
   container-type: inline-size;
   --text-letter: 2.7cqw;
@@ -1679,8 +1604,13 @@ body.envelope-zoom-active footer {
   padding-bottom: 0.15rem;
 }
 
-.letter-fold-opened-inner > .letter-compose {
-  z-index: 3;
+.letter-tri-fold-compose {
+  z-index: 6;
+}
+
+.letter-flip-scene--receive > .letter-compose,
+.letter-lift-rotate-settle-scene > .letter-compose {
+  z-index: 5;
 }
 
 /* flat_5: top + bottom panels
@@ -1741,13 +1671,11 @@ body.envelope-zoom-active footer {
   opacity: 0.55;
 }
 
-.letter-compose--ready {
-  animation: letter-compose-reveal 450ms ease-out 3000ms forwards;
-}
-
+.letter-compose--ready,
 .letter-compose--visible {
   opacity: 1;
   transform: translateY(0);
+  animation: none;
 }
 
 .card-compose-actions {
@@ -1953,6 +1881,9 @@ body.envelope-zoom-active footer {
 }
 
 .envelope-top-flap--open .envelope-top-flap-card {
+  /* Same end pose as envelope-top-flap-open 100% — avoids a snap when the
+     opening animation is cleared as the letter stage begins. */
+  animation: none;
   transform: rotateX(0deg) translateY(0) scaleY(1);
 }
 
@@ -1962,8 +1893,9 @@ body.envelope-zoom-active footer {
 }
 
 .envelope-top-flap--opening .envelope-top-flap-card {
-  animation: envelope-top-flap-open 700ms cubic-bezier(0.22, 1, 0.36, 1)
-    forwards;
+  animation: envelope-top-flap-open
+    var(--envelope-flap-open-ms, 700ms)
+    var(--envelope-flap-open-ease, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
 }
 
 .envelope-top-flap--closed .envelope-top-flap-card {
@@ -1986,7 +1918,10 @@ body.envelope-zoom-active footer {
 }
 
 .envelope-top-flap--open .envelope-top-flap-face--outside {
+  /* Soft hide after settle (was an instant unmount in React) */
   opacity: 0;
+  transition: opacity 180ms ease-out;
+  pointer-events: none;
 }
 
 .envelope-top-flap--closed .envelope-top-flap-face:not(.envelope-top-flap-face--outside) {
@@ -2032,8 +1967,8 @@ body.envelope-zoom-active footer {
     transform: rotateX(180deg) translateY(0) scaleY(1);
   }
 
-  55% {
-    transform: rotateX(96deg) translateY(1%) scaleY(0.99);
+  60% {
+    transform: rotateX(70deg) translateY(0.5%) scaleY(1);
   }
 
   100% {
@@ -2497,10 +2432,14 @@ body.envelope-zoom-active footer {
 }
 
 @keyframes letter-fold-opened-enter {
-  0%,
+  0% {
+    grid-template-rows: 0fr;
+    opacity: 1;
+  }
+
   40% {
     grid-template-rows: 0fr;
-    opacity: 0;
+    opacity: 1;
   }
 
   46%,
@@ -2558,18 +2497,6 @@ body.envelope-zoom-active footer {
 
   100% {
     transform: translateY(-52%) rotateY(180deg) scale(1);
-  }
-}
-
-@keyframes letter-compose-reveal {
-  from {
-    transform: translateY(0.75rem);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateY(0);
-    opacity: 1;
   }
 }
 

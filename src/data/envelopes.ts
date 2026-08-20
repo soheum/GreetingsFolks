@@ -56,7 +56,7 @@ export type EnvelopeLayer = {
   insideRightSrc?: string;
   insideRightWidth?: number;
   insideRightHeight?: number;
-  /** Closed outside flap (right), above the letter base/center. */
+  /** Closed outside flap (right), above center / under left outside. */
   outsideRightSrc?: string;
   outsideRightWidth?: number;
   outsideRightHeight?: number;
@@ -65,8 +65,8 @@ export type EnvelopeLayer = {
   outsideLeftWidth?: number;
   outsideLeftHeight?: number;
   /**
-   * Optional single closed-letter cover (e.g. flat_10_letter.webp).
-   * Shown while pocketed / lifting; side flaps take over after settle.
+   * Optional single closed-letter cover.
+   * When set, shown instead of the center + outside stack while pocketed / lifting.
    */
   closedCoverSrc?: string;
   closedCoverWidth?: number;
@@ -271,7 +271,8 @@ export const ENVELOPES: readonly Envelope[] = [
         zIndex: 5,
         rotate: -90,
         widthPercent: 58,
-        topPercent: 70,
+        // Lower % = higher in the pocket (70 sat too low on send)
+        topPercent: 62,
         letterOpenMotion: "lift-rotate-flip",
         composeLayout: "single",
         composeInset: "inset-[5%_5%_5%]",
@@ -676,10 +677,7 @@ export const ENVELOPES: readonly Envelope[] = [
         composeLayout: "single",
         composeInset: "inset-[0%_4%_0%_4%]",
         composeFontSize: "4.7cqw",
-        // Single closed pack while lifting; side panels open after settle
-        closedCoverSrc: "/images/flat_10_letter.webp",
-        closedCoverWidth: 1165,
-        closedCoverHeight: 1721,
+        // Closed look = center + outside L/R (same stack that hinges open)
         outsideRightSrc: "/images/flat_10_letter_outside_right.webp",
         outsideRightWidth: 1136,
         outsideRightHeight: 1837,

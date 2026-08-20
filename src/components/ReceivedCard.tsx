@@ -15,7 +15,8 @@ import { useLocale } from "@/lib/locale";
 
 const FRAME_MS = 600;
 const ZOOM_MS = 1300;
-const FLAP_MS = 1400;
+/** Must match receive `--envelope-flap-open-ms` (shorter = snappier open). */
+const FLAP_MS = 400;
 const LETTER_FLIP_MS = 3000;
 const LETTER_TRI_FOLD_MS = 3600;
 const LETTER_LIFT_SETTLE_MS = 2400;
@@ -96,6 +97,9 @@ function ReceiveTopFlap({
       style={
         {
           "--top-flap-top": matchesFlat10Back ? "4cqh" : `${topPercent}%`,
+          /* Receive: shorter than send so the top flap doesn’t linger */
+          "--envelope-flap-open-ms": "400ms",
+          "--envelope-flap-open-ease": "cubic-bezier(0.25, 0.9, 0.35, 1)",
           width: `${widthPercent}%`,
           aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
           transform: "translateX(-50%)",
@@ -113,32 +117,31 @@ function ReceiveTopFlap({
           priority
           className="envelope-top-flap-face h-auto w-full"
         />
-        {/* Drop outside once fully open — sealed/opening still need it for the fold */}
-        {mode !== "open" ? (
-          <div className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full">
+        {/* Keep outside mounted after open — unmounting mid-handoff caused a hitch.
+            CSS hides it once --open (backface already flipped past it). */}
+        <div className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full">
+          <Image
+            src={flap.outsideSrc}
+            alt=""
+            aria-hidden
+            width={flap.outsideWidth}
+            height={flap.outsideHeight}
+            priority
+            className="h-auto w-full"
+          />
+          {mode !== "closed" ? (
             <Image
-              src={flap.outsideSrc}
+              src="/images/sticker.webp"
               alt=""
               aria-hidden
-              width={flap.outsideWidth}
-              height={flap.outsideHeight}
+              width={256}
+              height={256}
               priority
-              className="h-auto w-full"
+              unoptimized
+              className="envelope-flap-sticker"
             />
-            {mode !== "closed" ? (
-              <Image
-                src="/images/sticker.webp"
-                alt=""
-                aria-hidden
-                width={256}
-                height={256}
-                priority
-                unoptimized
-                className="envelope-flap-sticker"
-              />
-            ) : null}
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -220,9 +223,17 @@ function ReceiveLetter({
     layer.composeShape === "taper-heave";
 
   if (mode === "pocketed") {
-    const coverSrc = layer.closedCoverSrc ?? layer.src;
-    const coverWidth = layer.closedCoverWidth ?? layer.width;
-    const coverHeight = layer.closedCoverHeight ?? layer.height;
+    const hasOutsideStack =
+      Boolean(
+        layer.outsideLeftSrc &&
+          layer.outsideLeftWidth &&
+          layer.outsideLeftHeight,
+      ) ||
+      Boolean(
+        layer.outsideRightSrc &&
+          layer.outsideRightWidth &&
+          layer.outsideRightHeight,
+      );
 
     return (
       <div
@@ -236,15 +247,62 @@ function ReceiveLetter({
           } as CSSProperties
         }
       >
-        <Image
-          src={coverSrc}
-          alt=""
-          aria-hidden
-          width={coverWidth}
-          height={coverHeight}
-          priority
-          className="h-auto w-full"
-        />
+        {hasOutsideStack ? (
+          <div
+            className="letter-closed-stack"
+            style={
+              {
+                "--letter-stack-aspect": `${layer.width} / ${layer.height}`,
+              } as CSSProperties
+            }
+          >
+            <Image
+              src={layer.src}
+              alt=""
+              aria-hidden
+              width={layer.width}
+              height={layer.height}
+              priority
+              className="letter-closed-stack__layer letter-closed-stack__center"
+            />
+            {layer.outsideLeftSrc &&
+            layer.outsideLeftWidth &&
+            layer.outsideLeftHeight ? (
+              <Image
+                src={layer.outsideLeftSrc}
+                alt=""
+                aria-hidden
+                width={layer.outsideLeftWidth}
+                height={layer.outsideLeftHeight}
+                priority
+                className="letter-closed-stack__layer letter-closed-stack__left"
+              />
+            ) : null}
+            {layer.outsideRightSrc &&
+            layer.outsideRightWidth &&
+            layer.outsideRightHeight ? (
+              <Image
+                src={layer.outsideRightSrc}
+                alt=""
+                aria-hidden
+                width={layer.outsideRightWidth}
+                height={layer.outsideRightHeight}
+                priority
+                className="letter-closed-stack__layer letter-closed-stack__right"
+              />
+            ) : null}
+          </div>
+        ) : (
+          <Image
+            src={layer.closedCoverSrc ?? layer.src}
+            alt=""
+            aria-hidden
+            width={layer.closedCoverWidth ?? layer.width}
+            height={layer.closedCoverHeight ?? layer.height}
+            priority
+            className="h-auto w-full"
+          />
+        )}
       </div>
     );
   }
@@ -253,6 +311,9 @@ function ReceiveLetter({
     mode === "flipping"
       ? "letter-compose letter-compose--ready"
       : "letter-compose letter-compose--visible";
+  const composeClassWithStack = usesTriFoldOpen
+    ? `${composeClass} letter-tri-fold-compose`
+    : composeClass;
 
   const composeTextStyle =
     layer.composeLineHeight != null || layer.composeFontSize
@@ -268,7 +329,7 @@ function ReceiveLetter({
 
   const messageFields = (
     <div
-      className={`${composeClass} absolute ${composeInsetClass} flex flex-col px-[0%] ${
+      className={`${composeClassWithStack} absolute ${composeInsetClass} flex flex-col px-[0%] ${
         usesShapedCompose
           ? "justify-start pb-[0%] pt-[0%]"
           : "justify-end pb-[2%] pt-[10%]"
@@ -384,7 +445,6 @@ function ReceiveLetter({
                     }
                   />
                 </div>
-                {messageFields}
               </div>
 
               <div className="letter-tri-fold-left">
@@ -439,6 +499,9 @@ function ReceiveLetter({
                   className="h-auto w-full"
                 />
               </div>
+
+              {/* Above flaps/cover so text is visible immediately */}
+              {messageFields}
             </div>
           </div>
         </div>
@@ -487,9 +550,10 @@ function ReceiveLetter({
                   priority
                   className="h-auto w-full"
                 />
-                {messageFields}
               </div>
             </div>
+            {/* Outside the fold grid so text is not clipped/hidden until expand */}
+            {messageFields}
           </div>
         </div>
       );
@@ -612,12 +676,13 @@ function ReceiveLetter({
                       priority
                       className="h-auto w-full"
                     />
-                    {messageFields}
                   </div>
                 ) : null}
               </div>
             </div>
           </div>
+          {/* Text above the flip so it isn’t waiting on the back face */}
+          {!composeOnFront ? messageFields : null}
         </div>
       );
     }
@@ -640,11 +705,6 @@ function ReceiveLetter({
           layer.insideLeftHeight,
       );
       const opensSideFlaps = opensRightFlap || opensLeftFlap;
-      const hasClosedCover = Boolean(
-        layer.closedCoverSrc &&
-          layer.closedCoverWidth &&
-          layer.closedCoverHeight,
-      );
       const sceneClass =
         mode === "flipped"
           ? `letter-flip-scene--elevated${
@@ -781,19 +841,6 @@ function ReceiveLetter({
                   className="letter-closed-stack__layer letter-closed-stack__right"
                 />
               ) : null}
-              {hasClosedCover && opensSideFlaps ? (
-                <Image
-                  src={layer.closedCoverSrc!}
-                  alt=""
-                  aria-hidden
-                  width={layer.closedCoverWidth}
-                  height={layer.closedCoverHeight}
-                  priority
-                  className={`letter-closed-cover${
-                    mode === "flipped" ? " letter-closed-cover--done" : ""
-                  }`}
-                />
-              ) : null}
             </div>
           </div>
         </div>
@@ -873,9 +920,10 @@ function ReceiveLetter({
             priority
             className="h-auto w-full"
           />
-          {messageFields}
         </div>
       </div>
+      {/* Text above the flip so it isn’t waiting on the back face */}
+      {messageFields}
     </div>
   );
 }
@@ -970,11 +1018,11 @@ function ReceiveEnvelopeOpen({
   const letterMode = letterModeForStage(stage);
   const isSealed = flapMode === "closed";
   const baseReady = flapMode === "opening" || flapMode === "open";
-  // Closed look = bottom + top_outside + sticker (not fill — fill fights the sealed flap).
-  // flat_8: skip full fill when open so top_inside isn't fighting flat_8.webp.
-  // flat_10: keep its existing open skip (separate seam issue — leave alone).
+  // Match send: hide fill while the top flap is closed/opening so we don't get a
+  // second “open” from fill art (esp. flat_2.webp, which already has an open flap).
+  // flat_8 / flat_10: skip fill even when open (seam / inside fight).
   const showFill =
-    !isSealed &&
+    flapMode === "open" &&
     !fillLayer.src.includes("/flat_8.webp") &&
     !fillLayer.src.includes("/flat_10.webp");
 
@@ -1060,13 +1108,13 @@ function ReceiveEnvelopeOpen({
                 />
               )}
 
-            {!isSealed ? (
-              <ReceiveLetter
-                layer={letterLayer}
-                message={message}
-                mode={letterMode}
-              />
-            ) : null}
+            {/* Keep letter mounted while sealed so flat_10 uses the same
+                center + outside L/R stack as send (not a late single-file mount). */}
+            <ReceiveLetter
+              layer={letterLayer}
+              message={message}
+              mode={letterMode}
+            />
 
             <Image
               src={bottomLayer.src}
