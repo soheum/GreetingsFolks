@@ -22,3 +22,17 @@ export function postFallImage(cardImage: string) {
   const num = cardImageNumber(cardImage);
   return `/images/flat_${num}_post.webp`;
 }
+
+/**
+ * Extra Y nudge for the shared `.letter-fall` seat.
+ * Negative = higher on the postbox (less deep in the slot).
+ * Most cards use the default 0; override when a `_post` asset is framed differently.
+ */
+const POST_FALL_NUDGE_Y: Record<string, string> = {
+  // flat_2 art is less top-padded than others, so the shared seat sits too low
+  "2": "-7%",
+};
+
+export function postFallNudgeY(cardImage: string) {
+  return POST_FALL_NUDGE_Y[cardImageNumber(cardImage)] ?? "0%";
+}

@@ -634,6 +634,8 @@ export const ENVELOPES: readonly Envelope[] = [
     height: 3324,
     featured: false,
     sendable: true,
+    // Tall portrait — keep receive/home zoom smaller than the default 2
+    zoomScale: 1.25,
     zoomTranslateY: "-13vh",
     topFlap: {
       insideSrc: "/images/flat_10_top_inside.webp",

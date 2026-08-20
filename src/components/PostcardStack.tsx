@@ -79,11 +79,12 @@ const BACK_FACE_Y_OFFSET_FOLD = 16;
 /**
  * flat_10 layer offsets (cqh so they scale with the card).
  * Back/bottom sit on the card bottom (like other envelopes). Top flap is
- * pushed down so it still seams with that lowered back.
+ * pushed down so it still seams with that lowered back and covers the letter
+ * during the send close.
  */
 const FLAT_10_BACK_INSET = "0cqh";
 const FLAT_10_BOTTOM_INSET = FLAT_10_BACK_INSET;
-const FLAT_10_TOP_FLAP_TOP = "5cqh";
+const FLAT_10_TOP_FLAP_TOP = "4cqh";
 /** flat_1_bottom position (centered slightly left of 50%) */
 const FLAT_1_BOTTOM_TRANSLATE_X = "-49.8%";
 const FLAT_1_BOTTOM_TRANSLATE_Y = "0%";
@@ -3065,7 +3066,8 @@ export function PostcardStack() {
                 onClick={handleBottomSendCard}
                 disabled={
                   (composeStage === "writing" &&
-                    !hasCardMessage(messageLeft, messageRight)) ||
+                    (!hasCardMessage(messageLeft, messageRight) ||
+                      !serviceClass)) ||
                   ((composeStage === "addressing" ||
                     composeStage === "sending") &&
                     !serviceClass)

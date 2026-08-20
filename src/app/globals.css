@@ -429,30 +429,34 @@ body.envelope-zoom-active footer {
   opacity: 0 !important;
 }
 
-/* Literal % in keyframes — CSS vars don't interpolate reliably in @keyframes.
-   `_post` art is top-heavy in the frame (empty space below the envelope), so
-   these `top` values seat the visual letter at the mail slot — higher % = lower. */
+/* Shared `top` seats every card’s image box. `--letter-fall-nudge-y` corrects
+   per-card `_post` framing (negative = higher / less deep in the slot). */
 .letter-fall {
+  --letter-fall-nudge-y: 0%;
   top: 42%;
-  transform: translate(-50%, -50%) rotate(-20deg);
+  transform: translate(-50%, calc(-50% + var(--letter-fall-nudge-y)))
+    rotate(-20deg);
   animation: letter-fall-mobile 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .letter-fall--done {
   top: 54%;
   animation: none;
-  transform: translate(-50%, -50%) rotate(-8deg);
+  transform: translate(-50%, calc(-50% + var(--letter-fall-nudge-y)))
+    rotate(-8deg);
 }
 
 @keyframes letter-fall-mobile {
   0% {
     top: 42%;
-    transform: translate(-50%, -50%) rotate(-20deg);
+    transform: translate(-50%, calc(-50% + var(--letter-fall-nudge-y)))
+      rotate(-20deg);
   }
 
   100% {
     top: 54%;
-    transform: translate(-50%, -50%) rotate(-8deg);
+    transform: translate(-50%, calc(-50% + var(--letter-fall-nudge-y)))
+      rotate(-8deg);
   }
 }
 
@@ -469,12 +473,14 @@ body.envelope-zoom-active footer {
   @keyframes letter-fall-desktop {
     0% {
       top: 58%;
-      transform: translate(-50%, -50%) rotate(-20deg);
+      transform: translate(-50%, calc(-50% + var(--letter-fall-nudge-y)))
+        rotate(-20deg);
     }
 
     100% {
       top: 68%;
-      transform: translate(-50%, -50%) rotate(-8deg);
+      transform: translate(-50%, calc(-50% + var(--letter-fall-nudge-y)))
+        rotate(-8deg);
     }
   }
 }
@@ -514,7 +520,8 @@ body.envelope-zoom-active footer {
     transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Scale up to home final size (54vh × 2), never shrink first */
+/* Scale up toward home size (center-height × card zoomScale), capped in JS
+   so opened letters still fit on small screens. */
 .receive-envelope-motion--zooming {
   top: auto;
   bottom: 4rem;
@@ -1006,6 +1013,22 @@ body.envelope-zoom-active footer {
 }
 
 .letter-lift-rotate-settle-card--receive-center .letter-lift-rotate-flip-card {
+  animation: none;
+  transform: rotateY(180deg);
+}
+
+/* flat_2: flip already settles during the open — hold that pose (no second drop) */
+.letter-lift-rotate-settle-card--receive-settled .letter-lift-rotate-settle-mover {
+  animation: none;
+  transform: translateX(var(--letter-lift-rotate-receive-settle, 50%));
+}
+
+.letter-lift-rotate-settle-card--receive-settled .letter-lift-rotate-settle-spin {
+  animation: none;
+  transform: rotate(90deg);
+}
+
+.letter-lift-rotate-settle-card--receive-settled .letter-lift-rotate-flip-card {
   animation: none;
   transform: rotateY(180deg);
 }
@@ -2247,7 +2270,7 @@ body.envelope-zoom-active footer {
   }
 }
 
-/* flat_2 open: keep lift/spin timing close to flat_3, then flip */
+/* flat_2 open: lift → rotate upright → flip + settle down together */
 @keyframes letter-lift-rotate-mover-then-flip {
   0% {
     transform: translateX(0);
@@ -2257,8 +2280,15 @@ body.envelope-zoom-active footer {
     transform: translateX(var(--letter-lift-rotate-lift, 72%));
   }
 
-  100% {
+  /* Hold elevated through the upright rotate */
+  45% {
     transform: translateX(var(--letter-lift-rotate-lift, 72%));
+  }
+
+  /* Drop while the Y-flip runs (same window as letter-lift-rotate-y-flip) */
+  76%,
+  100% {
+    transform: translateX(var(--letter-lift-rotate-receive-settle, 50%));
   }
 }
 
@@ -2286,7 +2316,7 @@ body.envelope-zoom-active footer {
 
 @keyframes letter-lift-rotate-y-flip {
   0%,
-  57% {
+  45% {
     transform: rotateY(0deg);
   }
 

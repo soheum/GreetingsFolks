@@ -12,7 +12,7 @@ import {
 import { Button } from "./Button";
 import { ViewDetailsModal } from "./ViewDetailsModal";
 import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
-import { postFallImage } from "@/lib/card-images";
+import { postFallImage, postFallNudgeY } from "@/lib/card-images";
 import { useLocale } from "@/lib/locale";
 
 const FALL_MS = 1100;
@@ -89,10 +89,11 @@ function ReceiveTopFlap({
   mode: FlapMode;
 }) {
   const widthPercent = flap.widthPercent ?? 100;
-  const topPercent = flap.topPercent ?? 0;
+  const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
+  // Receive seat: flat_2 flap sits a touch high vs the pocket — nudge down (send fold keeps 0).
+  const topPercent = (flap.topPercent ?? 0) + (isFlat2Flap ? 2.5 : 0);
   // Match PostcardStack flat_10 seam (same inset sealed + open)
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
-  const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
   // flat_2: no open flap art — hide the whole flap once open
   if (isFlat2Flap && mode === "open") {
     return null;
@@ -111,7 +112,7 @@ function ReceiveTopFlap({
       className={`envelope-top-flap ${modeClass} pointer-events-none absolute left-1/2 top-[var(--top-flap-top)]`}
       style={
         {
-          "--top-flap-top": matchesFlat10Back ? "5cqh" : `${topPercent}%`,
+          "--top-flap-top": matchesFlat10Back ? "4cqh" : `${topPercent}%`,
           width: `${widthPercent}%`,
           aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
           transform: "translateX(-50%)",
@@ -561,14 +562,16 @@ function ReceiveLetter({
     }
 
     if (usesLiftRotateSettle) {
-      // Keep settle-scene classes when reading so lift CSS vars stay applied;
-      // receive-center lowers from the elevated open pose to mid-frame.
+      // Keep settle-scene classes when reading so lift CSS vars stay applied.
+      // flat_2 flip settles during the flip; other settle cards ease down after.
       const sceneClass = `letter-lift-rotate-settle-scene${
         usesLiftRotateFlip ? " letter-lift-rotate-settle-scene--flip" : ""
       }${mode === "flipped" ? " letter-flip-scene--elevated" : ""}`;
       const doneClass =
         mode === "flipped"
-          ? " letter-lift-rotate-settle-card--receive-center"
+          ? usesLiftRotateFlip
+            ? " letter-lift-rotate-settle-card--receive-settled"
+            : " letter-lift-rotate-settle-card--receive-center"
           : "";
       const flipCardClass = usesLiftRotateFlip
         ? mode === "flipped"
@@ -955,13 +958,23 @@ function ReceiveEnvelopeOpen({
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportOrigin, setViewportOrigin] = useState({ top: 0, left: 0 });
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   useLayoutEffect(() => {
-    const frame = viewportRef.current?.getBoundingClientRect();
+    const frame = viewportRef.current;
     if (!frame) {
       return;
     }
-    setViewportOrigin({ top: frame.top, left: frame.left });
+
+    const measure = () => {
+      const rect = frame.getBoundingClientRect();
+      setViewportOrigin({ top: rect.top, left: rect.left });
+      setViewportSize({ width: rect.width, height: rect.height });
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, []);
 
   // Keep envelope portrait proportions so bottom/flap/sticker compose correctly.
@@ -971,10 +984,27 @@ function ReceiveEnvelopeOpen({
   const handoffLeft = pose.left - viewportOrigin.left;
   const handoffTop =
     pose.top - viewportOrigin.top - (handoffHeight - pose.height) * 1.2;
-  // Final size matches home (54vh × scale 2), without shrinking during framing
-  const homeFinalHeightPx =
-    (typeof window !== "undefined" ? window.innerHeight : 800) * 0.54 * 2;
-  const zoomScale = Math.max(homeFinalHeightPx / handoffHeight, 1);
+
+  // Match home zoom intent (center-height × card zoomScale), but cap to the
+  // available receive viewport so opened letters aren't clipped on small screens.
+  const zoomScaleFactor = envelope.zoomScale ?? 2;
+  const viewportH =
+    viewportSize.height ||
+    (typeof window !== "undefined" ? window.innerHeight : 800);
+  const isMdUp =
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 768px)").matches;
+  const centerHeightRatio = isMdUp ? 0.65 : 0.48;
+  const desiredHeightPx =
+    (typeof window !== "undefined" ? window.innerHeight : viewportH) *
+    centerHeightRatio *
+    zoomScaleFactor;
+  // Tall portraits (flat_10) need a lower fit so they don't fill the whole stage
+  const envelopeAspect = envelope.height / envelope.width;
+  const maxFitRatio = envelopeAspect > 1.8 ? 0.58 : 0.78;
+  const maxFitHeight = viewportH * maxFitRatio;
+  const targetHeightPx = Math.min(desiredHeightPx, maxFitHeight);
+  const zoomScale = Math.max(targetHeightPx / handoffHeight, 1);
 
   return (
     <section className="relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
@@ -1091,7 +1121,7 @@ function ReceiveEnvelopeOpen({
                   style={
                     {
                       top: flap.outsideSrc.includes("/flat_10_")
-                        ? "5cqh"
+                        ? "8cqh"
                         : `${flap.topPercent ?? 0}%`,
                       width: `${flap.widthPercent ?? 100}%`,
                       aspectRatio: `${flap.insideWidth} / ${flap.insideHeight}`,
@@ -1195,6 +1225,7 @@ export function ReceivedCard({
   const letterBtnRef = useRef<HTMLButtonElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const fallSrc = postFallImage(cardImage);
+  const fallNudgeY = postFallNudgeY(cardImage);
   const letterLayer = envelope.layers?.find((layer) => layer.anchor === "center");
 
   const clearTimers = useCallback(() => {
@@ -1325,6 +1356,11 @@ export function ReceivedCard({
             className={`letter-fall absolute left-1/2 z-10 w-[75%] border-0 bg-transparent p-0 md:w-[37.8%] ${
               fallDone ? "letter-fall--done cursor-pointer" : "cursor-default"
             }`}
+            style={
+              {
+                "--letter-fall-nudge-y": fallNudgeY,
+              } as CSSProperties
+            }
           >
             <Image
               src={fallSrc}
