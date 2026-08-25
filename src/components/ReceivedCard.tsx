@@ -12,6 +12,7 @@ import { Button } from "./Button";
 import { ViewDetailsModal } from "./ViewDetailsModal";
 import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
 import { useLocale } from "@/lib/locale";
+import { useMobileZoomFactor } from "@/lib/envelope-zoom";
 
 const FRAME_MS = 600;
 const ZOOM_MS = 1300;
@@ -1004,6 +1005,7 @@ function ReceiveEnvelopeOpen({
   stage: ReceiveStage;
 }) {
   const { t, envelopeCopy } = useLocale();
+  const mobileZoomFactor = useMobileZoomFactor();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const layers = envelope.layers!;
   const flap = envelope.topFlap!;
@@ -1036,7 +1038,7 @@ function ReceiveEnvelopeOpen({
     stage === "opening-letter" ||
     stage === "reading";
 
-  const zoomScale = envelope.zoomScale ?? 2;
+  const zoomScale = (envelope.zoomScale ?? 2) * mobileZoomFactor;
   const zoomTranslateY = envelope.zoomTranslateY ?? "0px";
 
   return (

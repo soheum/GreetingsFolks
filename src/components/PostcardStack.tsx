@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   CSSProperties,
   FormEvent,
   KeyboardEvent,
+  MouseEvent,
+  PointerEvent,
   ReactNode,
   WheelEvent,
 } from "react";
@@ -20,6 +22,7 @@ import {
 } from "@/data/envelopes";
 import { useLocale } from "@/lib/locale";
 import { canonicalCardImage } from "@/lib/card-images";
+import { useMobileZoomFactor } from "@/lib/envelope-zoom";
 
 const CENTER_HEIGHT = "var(--envelope-center-height)";
 const SIDE_HEIGHT = "var(--envelope-side-height)";
@@ -27,6 +30,8 @@ const ZOOM_SCALE = 2;
 const LETTER_OPEN_SCALE = 2;
 const ROW_GAP = "1.6rem";
 const WHEEL_COOLDOWN_MS = 650;
+/** Min horizontal travel (px) before a touch/pointer drag counts as a carousel swipe */
+const SWIPE_MIN_PX = 48;
 const NEIGHBOR_HIDE_MS = 500;
 const ZOOM_GROW_MS = 1300;
 const ZOOM_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
@@ -2313,6 +2318,7 @@ function EnvelopeVisual({
 
 export function PostcardStack() {
   const { t, envelopeCopy } = useLocale();
+  const mobileZoomFactor = useMobileZoomFactor();
   const [activeIndex, setActiveIndex] = useState(
     ENVELOPES.length * CAROUSEL_CENTER_COPY + INITIAL_CENTER_INDEX,
   );
@@ -2333,8 +2339,18 @@ export function PostcardStack() {
   const [isTopFlapCompositionReady, setIsTopFlapCompositionReady] =
     useState(false);
   const lastWheelAt = useRef(0);
+  const swipeStartRef = useRef<{
+    x: number;
+    y: number;
+    pointerId: number;
+  } | null>(null);
+  const swipeConsumedRef = useRef(false);
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const carouselChromeRef = useRef<HTMLDivElement>(null);
+  const [carouselChromeHeightPx, setCarouselChromeHeightPx] = useState<
+    number | null
+  >(null);
   const isZooming = zoomPhase !== null;
   const isComposing = composeStage !== null;
   // Freeze carousel math while zooming so width/offset don't drift as the card grows.
@@ -2342,8 +2358,39 @@ export function PostcardStack() {
   const activeEnvelopeIndex = wrapEnvelopeIndex(activeIndex);
   const activeEnvelope = ENVELOPES[activeEnvelopeIndex];
   const activeCopy = envelopeCopy(activeEnvelope);
+  const chromeReferenceCopy = (() => {
+    const copies = ENVELOPES.map((envelope) => envelopeCopy(envelope));
+    return {
+      title: copies.reduce(
+        (longest, copy) =>
+          copy.title.length > longest.length ? copy.title : longest,
+        "",
+      ),
+      subtitle: copies.reduce(
+        (longest, copy) =>
+          copy.subtitle.length > longest.length ? copy.subtitle : longest,
+        "",
+      ),
+    };
+  })();
   const zoomedEnvelope =
     zoomedIndex === null ? null : ENVELOPES[wrapEnvelopeIndex(zoomedIndex)];
+
+  useLayoutEffect(() => {
+    const el = carouselChromeRef.current;
+    if (!el) {
+      return;
+    }
+
+    const update = () => {
+      setCarouselChromeHeightPx(el.getBoundingClientRect().height);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [chromeReferenceCopy.title, chromeReferenceCopy.subtitle]);
 
   const clearZoomTimers = useCallback(() => {
     if (zoomTimerRef.current !== null) {
@@ -2715,6 +2762,20 @@ export function PostcardStack() {
   const showZoomClose =
     (zoomPhase === "growing" || zoomPhase === "done") && !isSuccessChromeHidden;
 
+  const stepCarousel = useCallback(
+    (direction: 1 | -1) => {
+      const now = Date.now();
+      if (now - lastWheelAt.current < WHEEL_COOLDOWN_MS) {
+        return;
+      }
+
+      lastWheelAt.current = now;
+      closeZoom();
+      setActiveIndex((currentIndex) => currentIndex + direction);
+    },
+    [closeZoom],
+  );
+
   const handleWheel = useCallback(
     (event: WheelEvent<HTMLElement>) => {
       if (isComposing || isZooming) {
@@ -2732,29 +2793,76 @@ export function PostcardStack() {
       }
 
       event.preventDefault();
+      stepCarousel(primaryDelta > 0 ? 1 : -1);
+    },
+    [isComposing, isZooming, stepCarousel],
+  );
 
-      const now = Date.now();
-      if (now - lastWheelAt.current < WHEEL_COOLDOWN_MS) {
+  const handlePointerDown = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (isComposing || isZooming || event.button !== 0) {
         return;
       }
 
-      lastWheelAt.current = now;
-      closeZoom();
-      setActiveIndex((currentIndex) => {
-        if (primaryDelta > 0) {
-          return currentIndex + 1;
-        }
-
-        return currentIndex - 1;
-      });
+      swipeStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        pointerId: event.pointerId,
+      };
     },
-    [closeZoom, isComposing, isZooming],
+    [isComposing, isZooming],
   );
+
+  const handlePointerUp = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+
+      if (
+        !start ||
+        start.pointerId !== event.pointerId ||
+        isComposing ||
+        isZooming
+      ) {
+        return;
+      }
+
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) <= Math.abs(dy)) {
+        return;
+      }
+
+      // Swipe left → next card; swipe right → previous (content follows the finger)
+      swipeConsumedRef.current = true;
+      stepCarousel(dx < 0 ? 1 : -1);
+    },
+    [isComposing, isZooming, stepCarousel],
+  );
+
+  const handlePointerCancel = useCallback(() => {
+    swipeStartRef.current = null;
+  }, []);
+
+  const handleClickCapture = useCallback((event: MouseEvent) => {
+    if (!swipeConsumedRef.current) {
+      return;
+    }
+
+    swipeConsumedRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
 
   return (
     <section
-      className="postcard-stack relative min-h-0 flex-1 overscroll-x-none bg-[#F3F9F9]"
+      className="postcard-stack relative min-h-0 flex-1 touch-pan-y overscroll-x-none bg-[#F3F9F9]"
       onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onClickCapture={handleClickCapture}
     >
       <div
         className={`absolute inset-0 overflow-hidden transition-colors duration-300 ${
@@ -2837,7 +2945,11 @@ export function PostcardStack() {
         <div
           className="absolute left-1/2 z-20 flex items-end"
           style={{
-            bottom: isZooming ? ZOOMED_CHROME_OFFSET : CAROUSEL_CHROME_OFFSET,
+            bottom: isZooming
+              ? ZOOMED_CHROME_OFFSET
+              : carouselChromeHeightPx != null
+                ? `${carouselChromeHeightPx}px`
+                : CAROUSEL_CHROME_OFFSET,
             gap: ROW_GAP,
             transform: `translateX(calc(-1 * ${activeOffset}))`,
             transition: isLoopResetting
@@ -2873,8 +2985,9 @@ export function PostcardStack() {
                 composeStage === "addressing" ||
                 composeStage === "sending" ||
                 composeStage === "success");
-            const addressingScale = addressingEnvelopeScale(envelope);
-            const zoomScale = envelopeZoomScale(envelope);
+            const addressingScale =
+              addressingEnvelopeScale(envelope) * mobileZoomFactor;
+            const zoomScale = envelopeZoomScale(envelope) * mobileZoomFactor;
             const zoomTranslateY = envelopeZoomTranslateY(envelope);
             const isZoomGrown =
               isZoomTarget &&
@@ -3011,6 +3124,7 @@ export function PostcardStack() {
       </div>
 
       <div
+        ref={carouselChromeRef}
         className={`absolute inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white px-10 py-12 text-center transition-opacity duration-500 ease-out md:px-6 md:pb-6 md:pt-4 ${
           isZooming
             ? "pointer-events-none opacity-0"
@@ -3019,27 +3133,44 @@ export function PostcardStack() {
         style={{ minHeight: "var(--carousel-chrome-offset)" }}
         aria-hidden={isZooming}
       >
-        <div key={activeIndex} className="flex max-w-lg flex-col items-center md:max-w-none">
-          <h2>{activeCopy.title}</h2>
-          <p className="text-sm text-neutral-500">{activeCopy.subtitle}</p>
-          <p className="mt-2 text-sm leading-snug text-neutral-600 md:hidden">
-            {activeCopy.description}
-          </p>
-          {activeCopy.descriptionNote ? (
-            <p className="mt-1.5 text-xs leading-snug text-neutral-500 md:hidden">
-              {activeCopy.descriptionNote}
+        <div className="relative flex w-full max-w-lg flex-col items-center md:max-w-none">
+          <div
+            className="invisible pointer-events-none md:hidden"
+            aria-hidden
+          >
+            <h2>{chromeReferenceCopy.title}</h2>
+            <p className="text-sm text-neutral-500">
+              {chromeReferenceCopy.subtitle}
             </p>
-          ) : null}
-          <div className="mt-3 flex items-center justify-center gap-3 md:mt-5">
-            <Button variant="outline" onClick={() => setDetailsOpen(true)}>
-              {t.viewDetails}
-            </Button>
-            <Button variant="primary" onClick={() => openZoom(activeIndex)}>
-              {t.sendCard}
-              <span aria-hidden className="text-sm leading-none">
-                ↗
-              </span>
-            </Button>
+            <div className="mt-10 flex items-center justify-center gap-3">
+              <Button variant="outline" tabIndex={-1}>
+                {t.viewDetails}
+              </Button>
+              <Button variant="primary" tabIndex={-1}>
+                {t.sendCard}
+                <span aria-hidden className="text-sm leading-none">
+                  ↗
+                </span>
+              </Button>
+            </div>
+          </div>
+          <div
+            key={activeIndex}
+            className="absolute inset-0 flex flex-col items-center md:static"
+          >
+            <h2>{activeCopy.title}</h2>
+            <p className="text-sm text-neutral-500">{activeCopy.subtitle}</p>
+            <div className="mt-auto flex items-center justify-center gap-3 md:mt-5">
+              <Button variant="outline" onClick={() => setDetailsOpen(true)}>
+                {t.viewDetails}
+              </Button>
+              <Button variant="primary" onClick={() => openZoom(activeIndex)}>
+                {t.sendCard}
+                <span aria-hidden className="text-sm leading-none">
+                  ↗
+                </span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

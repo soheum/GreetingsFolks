@@ -341,7 +341,7 @@ body.envelope-zoom-active footer {
 .receive-envelope-stage {
   --envelope-center-height: 48vh;
   --envelope-side-height: 32vh;
-  --carousel-chrome-offset: 14rem;
+  --carousel-chrome-offset: 13rem;
 }
 
 @media (min-width: 640px) {
@@ -349,7 +349,7 @@ body.envelope-zoom-active footer {
   .receive-envelope-stage {
     --envelope-center-height: 52vh;
     --envelope-side-height: 34.5vh;
-    --carousel-chrome-offset: 13rem;
+    --carousel-chrome-offset: 12rem;
   }
 }
 
