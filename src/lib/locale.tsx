@@ -213,7 +213,7 @@ const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
   },
   "Winter Pinetree": {
     title: "겨울 소나무",
-    subtitle: "사철 푸른 행복",
+    subtitle: "추운 겨울에도 끄덕없는 행복을 담아",
     description:
       "일월오봉도의 소나무와 눈 덮인 달 아래 장난치는 토끼를 담은 카드",
   },

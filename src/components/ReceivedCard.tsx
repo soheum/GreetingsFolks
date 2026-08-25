@@ -79,8 +79,8 @@ function ReceiveTopFlap({
   const topPercent = (flap.topPercent ?? 0) + (isFlat2Flap ? 2.5 : 0);
   // Match PostcardStack flat_10 seam (same inset sealed + open)
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
-  // flat_2: no open flap art — hide the whole flap once open
-  if (isFlat2Flap && mode === "open") {
+  // flat_2 / flat_10: open fill already has the open top — flap on top = seam
+  if ((isFlat2Flap || matchesFlat10Back) && mode === "open") {
     return null;
   }
 
@@ -1060,20 +1060,8 @@ function ReceiveEnvelopeOpen({
             className="receive-envelope-stack relative h-full w-full"
             style={{ containerType: "size" }}
           >
-            {showFill ? (
-              <Image
-                src={fillLayer.src}
-                alt=""
-                aria-hidden
-                width={fillLayer.width}
-                height={fillLayer.height}
-                priority
-                style={{ zIndex: fillLayer.zIndex }}
-                className="receive-envelope-fill pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
-              />
-            ) : null}
-
-            {/* Match send carousel: back sits under the letter (fill skipped for flat_10) */}
+            {/* Back under fill (same order as send) — if back paints after fill at
+                z-index 0 it covers flat_2.webp when the letter is open. */}
             {flap.backSrc && flap.backWidth && flap.backHeight ? (
               <Image
                 src={flap.backSrc}
@@ -1091,6 +1079,19 @@ function ReceiveEnvelopeOpen({
                 className={`pointer-events-none absolute left-0 z-0 h-auto w-full ${
                   flap.backSrc.includes("/flat_10_") ? "" : "bottom-2"
                 }`}
+              />
+            ) : null}
+
+            {showFill ? (
+              <Image
+                src={fillLayer.src}
+                alt=""
+                aria-hidden
+                width={fillLayer.width}
+                height={fillLayer.height}
+                priority
+                style={{ zIndex: fillLayer.zIndex }}
+                className="receive-envelope-fill pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
               />
             ) : null}
 

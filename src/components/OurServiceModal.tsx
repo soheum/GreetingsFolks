@@ -304,7 +304,7 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
         <div className="relative h-[440vh]">
           <div className="sticky top-0 h-dvh overflow-hidden">
             <div
-              className="absolute top-1/2 left-1/2 z-[5] w-[min(92vw,40rem)] overflow-hidden rounded-sm px-16 py-12 pb-16 shadow-sm sm:px-16 sm:py-18 sm:pb-22"
+              className="absolute top-1/2 left-1/2 z-[5] w-[min(92vw,40rem)] overflow-hidden rounded-sm px-16 py-6 pb-16 shadow-sm sm:px-16 sm:py-10 sm:pb-22"
               style={{
                 transform: `translate(-50%, calc(-50% + ${pinkOffsetY}vh))`,
                 fontFamily: letterFontFamily,
@@ -345,8 +345,8 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
                             index === 0
                               ? "text-sm font-normal text-neutral-900"
                               : index === 1
-                                ? "mt-4 text-sm leading-relaxed text-neutral-700"
-                                : "mt-3 text-sm leading-relaxed text-neutral-700"
+                                ? "mt-6 text-sm leading-relaxed text-neutral-700"
+                                : "mt-5 text-sm leading-relaxed text-neutral-700"
                           }
                         >
                           {paragraph}
@@ -366,8 +366,8 @@ export function OurServiceModal({ open, onClose }: OurServiceModalProps) {
                             index === 0
                               ? "text-sm font-normal text-neutral-900"
                               : index === 1
-                                ? "mt-4 text-sm leading-relaxed text-neutral-700"
-                                : "mt-3 text-sm leading-relaxed text-neutral-700"
+                                ? "mt-6 text-sm leading-relaxed text-neutral-700"
+                                : "mt-5 text-sm leading-relaxed text-neutral-700"
                           }
                         >
                           {paragraph}

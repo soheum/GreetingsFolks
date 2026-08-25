@@ -13,16 +13,23 @@ export type ViewDetailsCopy = {
 
 type ViewDetailsEntry = Record<ViewDetailsLocale, ViewDetailsCopy>;
 
+/** Chochungdo source painting (landscape). Used by Blue Night Flowers + Shin Saimdang's Garden. */
+const CHOCHUNGDO_IMAGE = {
+  src: "/images/flat_8_more.webp",
+  width: 1887,
+  height: 1091,
+} as const;
+
 /** Reference images for View details, keyed by envelope.title. */
 const VIEW_DETAILS_IMAGE: Partial<Record<string, string>> = {
   Strawberry: "/images/flat_1_more.webp",
   "Birthday Guard": "/images/flat_2_more.webp",
   "Letter Sijeonji": "/images/flat_9_more.webp",
   "Heave-ho!": "/images/flat_4_more.webp",
-  "Blue Night Flowers": "/images/flat_8_more.webp",
+  "Blue Night Flowers": CHOCHUNGDO_IMAGE.src,
   "Full Moon Dalhangari": "/images/flat_6_more.webp",
   "Jade Rabbit's Easter": "/images/flat_7_more.webp",
-  "Shin Saimdang's Garden": "/images/flat_8_more.webp",
+  "Shin Saimdang's Garden": CHOCHUNGDO_IMAGE.src,
   "Swallow Sijeonji": "/images/flat_9_more.webp",
   "Winter Pinetree": "/images/flat_10_more.webp",
 };
@@ -386,6 +393,8 @@ export const VIEW_DETAILS: Record<string, ViewDetailsEntry> = {
 export type ViewDetailsContent = ViewDetailsCopy & {
   imageSrc?: string;
   imageHref?: string;
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 export function getViewDetailsCopy(
@@ -398,9 +407,17 @@ export function getViewDetailsCopy(
   }
   const copy = entry[locale] ?? entry.en;
   const hrefs = VIEW_DETAILS_IMAGE_HREF[envelopeTitle];
+  const imageSrc = VIEW_DETAILS_IMAGE[envelopeTitle];
+  const isWideImage = imageSrc === CHOCHUNGDO_IMAGE.src;
   return {
     ...copy,
-    imageSrc: VIEW_DETAILS_IMAGE[envelopeTitle],
+    imageSrc,
     imageHref: hrefs?.[locale] ?? hrefs?.en,
+    ...(isWideImage
+      ? {
+          imageWidth: CHOCHUNGDO_IMAGE.width,
+          imageHeight: CHOCHUNGDO_IMAGE.height,
+        }
+      : {}),
   };
 }

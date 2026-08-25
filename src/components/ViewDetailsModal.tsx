@@ -9,6 +9,37 @@ import { useLocale } from "@/lib/locale";
 const BOJAGI_HREF =
   "https://collections.vam.ac.uk/item/O1241357/wrapping-cloth/";
 
+function ViewDetailsSourceImage({
+  src,
+  alt,
+  wide,
+  width,
+  height,
+}: {
+  src: string;
+  alt: string;
+  wide: boolean;
+  width?: number;
+  height?: number;
+}) {
+  if (wide && width && height) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        className="h-auto w-full"
+        sizes="18rem"
+      />
+    );
+  }
+
+  return (
+    <Image src={src} alt={alt} fill className="object-cover" sizes="20rem" />
+  );
+}
+
 /** Turn "bojagi" / "보자기" in body copy into external links. */
 function linkifyBojagi(text: string): ReactNode {
   const parts = text.split(/(bojagi|보자기)/gi);
@@ -73,6 +104,11 @@ export function ViewDetailsModal({
     return null;
   }
 
+  const isWideImage = Boolean(copy.imageWidth && copy.imageHeight);
+  const imageFrameClassName = isWideImage
+    ? "relative mt-8 block w-full max-w-[18rem]"
+    : "relative mt-8 block aspect-square w-full max-w-[10rem] overflow-hidden";
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
@@ -134,24 +170,24 @@ export function ViewDetailsModal({
                     href={copy.imageHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="relative mt-8 block aspect-square w-full max-w-[10rem] overflow-hidden transition-opacity hover:opacity-90"
+                    className={`${imageFrameClassName} transition-opacity hover:opacity-90`}
                   >
-                    <Image
+                    <ViewDetailsSourceImage
                       src={copy.imageSrc}
                       alt={copy.imageCaption}
-                      fill
-                      className="object-cover"
-                      sizes="20rem"
+                      wide={isWideImage}
+                      width={copy.imageWidth}
+                      height={copy.imageHeight}
                     />
                   </a>
                 ) : (
-                  <div className="relative mt-8 aspect-square w-full max-w-[10rem] overflow-hidden">
-                    <Image
+                  <div className={imageFrameClassName}>
+                    <ViewDetailsSourceImage
                       src={copy.imageSrc}
                       alt={copy.imageCaption}
-                      fill
-                      className="object-cover"
-                      sizes="20rem"
+                      wide={isWideImage}
+                      width={copy.imageWidth}
+                      height={copy.imageHeight}
                     />
                   </div>
                 )
@@ -178,20 +214,22 @@ export function ViewDetailsModal({
                 {copy.sourceCredit}
               </p>
 
-              <div className="mt-8 space-y-1 text-neutral-600 [&_p]:text-sm">
+              <div className="mt-4 space-y-1 text-neutral-600 [&_p]:text-sm">
                 <p className="font-medium text-neutral-800">
                   {copy.meaningsLabel}
                 </p>
                 <p>{copy.meanings}</p>
               </div>
 
-              <div className="mt-8 space-y-1 text-neutral-600 [&_p]:text-sm">
+              <div className="mt-4 space-y-1 text-neutral-600 [&_p]:text-sm">
                 <p className="font-medium text-neutral-800">
                   {locale === "ko" ? "설명" : "Description"}
                 </p>
-                {copy.body.map((paragraph, index) => (
-                  <p key={index}>{linkifyBojagi(paragraph)}</p>
-                ))}
+                <div className="space-y-3">
+                  {copy.body.map((paragraph, index) => (
+                    <p key={index}>{linkifyBojagi(paragraph)}</p>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

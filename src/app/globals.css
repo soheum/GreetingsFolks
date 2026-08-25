@@ -1036,19 +1036,22 @@ body.envelope-zoom-active footer {
   transform: translateX(-5%);
 }
 
-/* flat_2 insert: unflip during lift, then reorient like flat_3 */
+/* flat_2 insert: start on the writing back, unflip during lift, then keep the
+   front (flat_2_letter.webp) through reorient + drop into the envelope.
+   --lift / --flip / --insert / --done must beat .letter-insert-scene .…-flip-card
+   or the back face sticks for the rest of the close. */
 .letter-insert-scene .letter-lift-rotate-flip-card {
   transform: rotateY(180deg);
 }
 
-.letter-lift-rotate-flip-card--lift {
+.letter-insert-scene .letter-lift-rotate-flip-card--lift {
   animation: letter-insert-unflip 800ms
     var(--letter-insert-easing, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
 }
 
-.letter-lift-rotate-flip-card--flip,
-.letter-lift-rotate-flip-card--insert,
-.letter-lift-rotate-flip-card--done {
+.letter-insert-scene .letter-lift-rotate-flip-card--flip,
+.letter-insert-scene .letter-lift-rotate-flip-card--insert,
+.letter-insert-scene .letter-lift-rotate-flip-card--done {
   transform: rotateY(0deg);
   animation: none;
 }
@@ -1511,6 +1514,13 @@ body.envelope-zoom-active footer {
   /* Text scales with the write area so capacity stays stable across viewports */
   container-type: inline-size;
   --text-letter: 2.7cqw;
+}
+
+/* Beats .letter-compose { opacity: 1 } (Tailwind opacity-0 cannot). */
+.letter-compose.letter-compose--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Lantern-shaped letter backs (e.g. flat_6): write area follows the lantern.

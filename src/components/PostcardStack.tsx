@@ -43,6 +43,10 @@ const LETTER_LIFT_ROTATE_SETTLE_MS = 2800;
 const LETTER_LIFT_ROTATE_RIGHT_MS = 2800;
 const LETTER_LIFT_ROTATE_FLIP_MS = 4200;
 const LETTER_FOLD_OPEN_MS = 6000;
+/** Must match --letter-fold-open-duration (lift + unfold). */
+const LETTER_FOLD_OPEN_ANIMATION_MS = 5000;
+/** Delay before "Write your letter here..." appears on fold-open letters. */
+const LETTER_FOLD_COMPOSE_REVEAL_MS = 3000;
 /** flat_4 / flat_5: fold the opened letter shut before insert */
 const LETTER_FOLD_CLOSE_MS = 1000;
 /** Beat after fold shut before dropping into the envelope */
@@ -682,7 +686,6 @@ function LetterFlipLayer({
   const { t } = useLocale();
   const leftRef = useRef<HTMLTextAreaElement>(null);
   const rightRef = useRef<HTMLTextAreaElement>(null);
-  const topPercent = letterTopPercent(layer, "open");
   const hasBack = letterHasBack(layer);
   const usesLiftSettle = letterUsesLiftSettle(layer);
   const usesLiftRotateSettle = letterUsesLiftRotateSettle(layer);
@@ -702,10 +705,30 @@ function LetterFlipLayer({
   const canWrite = isSendable && composeStage === "writing";
   const insertStep = getInsertStep(composeStage ?? null);
   const isInserting = insertStep !== null;
+  const [foldComposeReady, setFoldComposeReady] = useState(false);
+
+  useEffect(() => {
+    if (!usesFoldOpen || composeStage !== "writing") {
+      setFoldComposeReady(false);
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      setFoldComposeReady(true);
+    }, LETTER_FOLD_COMPOSE_REVEAL_MS);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [usesFoldOpen, composeStage]);
+
+  // Writing uses the open seat; closing/insert uses the in-pocket seat so
+  // flat_2 doesn’t sit too high and stick out of the envelope.
+  const topPercent = letterTopPercent(layer, isInserting ? "pocketed" : "open");
   const showComposeMessage =
     isSendable &&
     composeStage === "writing"
-      ? true
+      ? !usesFoldOpen || foldComposeReady
       : isSendable &&
         !usesFoldOpen &&
         (composeStage === "closing-lift" ||
@@ -1012,7 +1035,7 @@ function LetterFlipLayer({
             : "justify-end pt-[10%] pb-[2%]"
   } ${
     !showComposeMessage
-      ? "pointer-events-none opacity-0"
+      ? "pointer-events-none letter-compose--hidden"
       : canWrite
         ? hasBack ||
           usesLiftSettle ||
@@ -1279,6 +1302,7 @@ function LetterFlipLayer({
               "--letter-top": `${topPercent}%`,
               "--letter-z-base": layer.zIndex,
               "--letter-z-top": 50,
+              "--letter-fold-open-duration": `${LETTER_FOLD_OPEN_ANIMATION_MS}ms`,
               "--letter-fold-close-duration": `${LETTER_FOLD_CLOSE_MS}ms`,
               width: `${letterWidthPercent(layer)}%`,
               transform: `translate(-50%, -50%) rotate(${layer.rotate ?? 0}deg)`,
@@ -1312,13 +1336,14 @@ function LetterFlipLayer({
                 />
               </div>
             </div>
-            {/* Outside the fold grid so text is not clipped/hidden until expand */}
-            <div
-              className={composeClassName}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {composeFields}
-            </div>
+            {foldComposeReady ? (
+              <div
+                className={composeClassName}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {composeFields}
+              </div>
+            ) : null}
           </div>
         </div>
       );
@@ -1651,8 +1676,9 @@ function TopFlapLayer({
   const topPercent = flap.topPercent ?? 0;
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
   const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
-  // flat_2: no open flap art — hide the whole flap once open
-  if (isFlat2Flap && step === "open") {
+  // flat_2 / flat_10: open fill already has the open top — keeping the flap
+  // stacked on top left a double rim / white seam at the pocket edge.
+  if ((isFlat2Flap || matchesFlat10Back) && step === "open") {
     return null;
   }
 
@@ -1673,15 +1699,18 @@ function TopFlapLayer({
       }
     >
       <div className="envelope-top-flap-card h-full w-full">
-        <Image
-          src={flap.insideSrc}
-          alt=""
-          aria-hidden
-          width={flap.insideWidth}
-          height={flap.insideHeight}
-          priority={priority}
-          className="envelope-top-flap-face h-auto w-full"
-        />
+        {/* flat_10 sealed/default: outside only — inside peeks through the fold */}
+        {!(matchesFlat10Back && step === "closed") ? (
+          <Image
+            src={flap.insideSrc}
+            alt=""
+            aria-hidden
+            width={flap.insideWidth}
+            height={flap.insideHeight}
+            priority={priority}
+            className="envelope-top-flap-face h-auto w-full"
+          />
+        ) : null}
         {step !== "open" ? (
           <Image
             src={flap.outsideSrc}
@@ -2117,9 +2146,10 @@ function EnvelopeVisual({
               if (
                 layer.anchor === "fill" &&
                 envelope.topFlap &&
-                // flat_10 open look is back + bottom + flap (full fill jumps the seam)
-                (layer.src.includes("/flat_10.webp") ||
-                  topFlapStep === "closing" ||
+                // Hide fill while flap is mid-motion; once open, show fill
+                // (including flat_10.webp) under the lifted letter — same as
+                // other cards. Skipping flat_10 forever left a gap at this pose.
+                (topFlapStep === "closing" ||
                   topFlapStep === "closed" ||
                   topFlapStep === "opening")
               ) {
