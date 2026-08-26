@@ -113,6 +113,16 @@ function letterWidthPercent(layer: EnvelopeLayer) {
   return Math.min((layer.widthPercent ?? 50) * LETTER_SIZE_MULTIPLIER, 100);
 }
 
+function imageFetchProps(priority: boolean, eager = false) {
+  if (priority) {
+    return { priority: true } as const;
+  }
+  if (eager) {
+    return { loading: "eager" as const };
+  }
+  return { loading: "lazy" as const };
+}
+
 function letterTopPercent(
   layer: EnvelopeLayer,
   seat: "pocketed" | "open" = "open",
@@ -283,7 +293,7 @@ function letterClosedStack(
   layer: EnvelopeLayer,
   priority?: boolean,
   children?: ReactNode,
-  options?: { hingedRight?: boolean; hingedLeft?: boolean },
+  options?: { hingedRight?: boolean; hingedLeft?: boolean; eager?: boolean },
 ) {
   const hasOutside =
     Boolean(
@@ -305,6 +315,7 @@ function letterClosedStack(
       layer.closedCoverWidth &&
       layer.closedCoverHeight,
   );
+  const load = imageFetchProps(Boolean(priority), Boolean(options?.eager));
 
   // Optional single closed pack when not hinging open yet
   if (hasClosedCover && !hingedRight && !hingedLeft) {
@@ -316,7 +327,7 @@ function letterClosedStack(
           aria-hidden
           width={layer.closedCoverWidth}
           height={layer.closedCoverHeight}
-          priority={priority}
+          {...load}
           className="h-auto w-full"
         />
         {children}
@@ -333,7 +344,7 @@ function letterClosedStack(
           aria-hidden
           width={layer.width}
           height={layer.height}
-          priority={priority}
+          {...load}
           className="h-auto w-full"
         />
         {children}
@@ -356,7 +367,7 @@ function letterClosedStack(
         aria-hidden
         width={layer.width}
         height={layer.height}
-        priority={priority}
+        {...load}
         className="letter-closed-stack__layer letter-closed-stack__center"
       />
       {children}
@@ -370,7 +381,7 @@ function letterClosedStack(
                 aria-hidden
                 width={layer.outsideLeftWidth}
                 height={layer.outsideLeftHeight}
-                priority={priority}
+                {...load}
                 className="letter-side-flap-image"
               />
             </div>
@@ -381,7 +392,7 @@ function letterClosedStack(
                 aria-hidden
                 width={layer.insideLeftWidth}
                 height={layer.insideLeftHeight}
-                priority={priority}
+                {...load}
                 className="letter-side-flap-image"
               />
             </div>
@@ -396,7 +407,7 @@ function letterClosedStack(
           aria-hidden
           width={layer.outsideLeftWidth}
           height={layer.outsideLeftHeight}
-          priority={priority}
+          {...load}
           className="letter-closed-stack__layer letter-closed-stack__left"
         />
       ) : null}
@@ -410,7 +421,7 @@ function letterClosedStack(
                 aria-hidden
                 width={layer.outsideRightWidth}
                 height={layer.outsideRightHeight}
-                priority={priority}
+                {...load}
                 className="letter-side-flap-image"
               />
             </div>
@@ -421,7 +432,7 @@ function letterClosedStack(
                 aria-hidden
                 width={layer.insideRightWidth}
                 height={layer.insideRightHeight}
-                priority={priority}
+                {...load}
                 className="letter-side-flap-image"
               />
             </div>
@@ -436,7 +447,7 @@ function letterClosedStack(
           aria-hidden
           width={layer.outsideRightWidth}
           height={layer.outsideRightHeight}
-          priority={priority}
+          {...load}
           className="letter-closed-stack__layer letter-closed-stack__right"
         />
       ) : null}
@@ -1669,11 +1680,13 @@ function LetterFlipLayer({
 function TopFlapLayer({
   flap,
   priority = false,
+  eager = false,
   step,
   isReady = true,
 }: {
   flap: EnvelopeTopFlap;
   priority?: boolean;
+  eager?: boolean;
   step: TopFlapStep;
   isReady?: boolean;
 }) {
@@ -1681,6 +1694,7 @@ function TopFlapLayer({
   const topPercent = flap.topPercent ?? 0;
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
   const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
+  const load = imageFetchProps(priority, eager);
   // flat_2 / flat_10: open fill already has the open top — keeping the flap
   // stacked on top left a double rim / white seam at the pocket edge.
   if ((isFlat2Flap || matchesFlat10Back) && step === "open") {
@@ -1712,7 +1726,7 @@ function TopFlapLayer({
             aria-hidden
             width={flap.insideWidth}
             height={flap.insideHeight}
-            priority={priority}
+            {...load}
             className="envelope-top-flap-face h-auto w-full"
           />
         ) : null}
@@ -1723,7 +1737,7 @@ function TopFlapLayer({
             aria-hidden
             width={flap.outsideWidth}
             height={flap.outsideHeight}
-            priority={priority}
+            {...load}
             className="envelope-top-flap-face envelope-top-flap-face--outside h-auto w-full"
           />
         ) : null}
@@ -1735,6 +1749,7 @@ function TopFlapLayer({
 function EnvelopeVisual({
   envelope,
   priority = false,
+  eager = false,
   onLetterClick,
   onCarouselSelect,
   isZoomedEnvelope = false,
@@ -1757,6 +1772,7 @@ function EnvelopeVisual({
 }: {
   envelope: Envelope;
   priority?: boolean;
+  eager?: boolean;
   onLetterClick?: () => void;
   onCarouselSelect?: () => void;
   isZoomedEnvelope?: boolean;
@@ -1780,6 +1796,7 @@ function EnvelopeVisual({
   onPreviousClick?: () => void;
 }) {
   const { t } = useLocale();
+  const load = imageFetchProps(priority, eager);
   const frameStyle = {
     aspectRatio: `${envelope.width} / ${envelope.height}`,
   } as CSSProperties;
@@ -2069,7 +2086,7 @@ function EnvelopeVisual({
                 aria-hidden
                 width={envelope.topFlap.backWidth!}
                 height={envelope.topFlap.backHeight!}
-                priority={priority}
+                {...load}
                 style={{
                   zIndex: 0,
                   bottom: envelope.topFlap.backSrc.includes("/flat_10_")
@@ -2085,11 +2102,35 @@ function EnvelopeVisual({
             ) : null}
             {envelope.layers.map((layer) => {
               if (layer.anchor === "center") {
-                if (!showCarouselLetter && !isZoomedEnvelope) {
-                  return null;
+                const topPercent = letterTopPercent(layer, "pocketed");
+                const letterVisible = showCarouselLetter || isZoomedEnvelope;
+
+                if (!letterVisible) {
+                  if (!eager) {
+                    return null;
+                  }
+
+                  return (
+                    <div
+                      key={layer.src}
+                      aria-hidden
+                      className="pointer-events-none absolute left-1/2 top-[var(--letter-top)]"
+                      style={
+                        {
+                          "--letter-top": `${topPercent}%`,
+                          zIndex: layer.zIndex,
+                          width: `${letterWidthPercent(layer)}%`,
+                          transform: "translate(-50%, -50%)",
+                        } as CSSProperties
+                      }
+                    >
+                      <div className="opacity-0">
+                        {letterClosedStack(layer, false, undefined, { eager })}
+                      </div>
+                    </div>
+                  );
                 }
 
-                const topPercent = letterTopPercent(layer, "pocketed");
                 const hasBack = letterHasBack(layer);
                 const shouldUseLetterLayer =
                   isZoomedEnvelope &&
@@ -2141,25 +2182,21 @@ function EnvelopeVisual({
                           transform: `rotate(${layer.rotate ?? 0}deg)`,
                         }}
                       >
-                        {letterClosedStack(layer, priority)}
+                        {letterClosedStack(layer, priority, undefined, {
+                          eager,
+                        })}
                       </span>
                     </span>
                   </Button>
                 );
               }
 
-              if (
+              const hideOpenFill =
                 layer.anchor === "fill" &&
-                envelope.topFlap &&
-                // Hide fill while flap is mid-motion; once open, show fill
-                // (including flat_10.webp) under the lifted letter — same as
-                // other cards. Skipping flat_10 forever left a gap at this pose.
+                Boolean(envelope.topFlap) &&
                 (topFlapStep === "closing" ||
                   topFlapStep === "closed" ||
-                  topFlapStep === "opening")
-              ) {
-                return null;
-              }
+                  topFlapStep === "opening");
 
               const softBottomOpacity =
                 layer.anchor === "bottom" &&
@@ -2196,7 +2233,7 @@ function EnvelopeVisual({
                       aria-hidden
                       width={layer.width}
                       height={layer.height}
-                      priority={priority}
+                      {...load}
                       className={`h-auto w-full${
                         softBottomOpacity ? " opacity-93" : ""
                       }`}
@@ -2213,9 +2250,11 @@ function EnvelopeVisual({
                   aria-hidden
                   width={layer.width}
                   height={layer.height}
-                  priority={priority}
+                  {...load}
                   style={{ zIndex: layer.zIndex }}
-                  className="pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom"
+                  className={`pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom${
+                    hideOpenFill ? " opacity-0" : ""
+                  }`}
                 />
               );
             })}
@@ -2226,7 +2265,7 @@ function EnvelopeVisual({
                 aria-hidden
                 width={envelope.topFlap.bottomInsideWidth!}
                 height={envelope.topFlap.bottomInsideHeight!}
-                priority={priority}
+                {...load}
                 style={{ zIndex: 1 }}
                 className={`envelope-composed-base ${
                   isComposedFlapVisible ? "envelope-composed-base--ready" : ""
@@ -2237,6 +2276,7 @@ function EnvelopeVisual({
               <TopFlapLayer
                 flap={envelope.topFlap}
                 priority={priority}
+                eager={eager}
                 step={topFlapStep}
                 isReady={
                   supportsCarouselFlapOpen || isSealedCarousel
@@ -2254,7 +2294,7 @@ function EnvelopeVisual({
                 aria-hidden
                 width={envelope.topFlap!.backWidth!}
                 height={envelope.topFlap!.backHeight!}
-                priority={priority}
+                {...load}
                 style={{
                   zIndex: 0,
                   transform:
@@ -2281,7 +2321,7 @@ function EnvelopeVisual({
                     aria-hidden
                     width={letterLayer.width}
                     height={letterLayer.height}
-                    priority={priority}
+                    {...load}
                     className="absolute left-1/2 top-[var(--letter-top)] h-auto"
                     style={
                       {
@@ -2308,10 +2348,10 @@ function EnvelopeVisual({
       alt={envelope.alt}
       width={envelope.width}
       height={envelope.height}
+      {...load}
       className={`h-full w-auto object-contain object-bottom ${
         isClosing && !envelope.sendable ? "envelope-visual--closing" : ""
       }`}
-      priority={priority}
     />
   );
 }
@@ -2874,7 +2914,7 @@ export function PostcardStack() {
             variant="outline"
             onClick={closeZoom}
             aria-label="Close"
-            className="absolute top-6 right-6 z-50 !min-w-0 size-10 !px-4 py-2.5 text-black"
+            className="absolute top-[max(1.5rem,env(safe-area-inset-top))] right-[max(1.5rem,env(safe-area-inset-right))] z-50 !min-w-0 size-10 !px-4 py-2.5 text-black"
           >
             <svg
               aria-hidden
@@ -2909,9 +2949,10 @@ export function PostcardStack() {
               : "pointer-events-none opacity-0 duration-300"
           }`}
           onClick={() => {
-            if (!isComposing) {
-              closeZoom();
+            if (composeStage === "sending") {
+              return;
             }
+            closeZoom();
           }}
         />
 
@@ -3046,6 +3087,12 @@ export function PostcardStack() {
                 <EnvelopeVisual
                   envelope={envelope}
                   priority={isActive}
+                  eager={
+                    !isZooming &&
+                    (index === activeIndex - 1 ||
+                      index === activeIndex ||
+                      index === activeIndex + 1)
+                  }
                   onLetterClick={() => handleLetterClick(index)}
                   onCarouselSelect={
                     isActive || isZooming
@@ -3257,6 +3304,11 @@ export function PostcardStack() {
               </fieldset>
             )}
             <div className="flex shrink-0 items-center gap-3">
+              {composeStage !== "sending" && composeStage !== "success" ? (
+                <Button variant="outline" onClick={closeZoom}>
+                  {t.back}
+                </Button>
+              ) : null}
               <Button
                 variant="primary"
                 onClick={handleBottomSendCard}

@@ -21,6 +21,7 @@ type UiMessages = {
   send: string;
   sending: string;
   pickAnother: string;
+  back: string;
   yourLetter: string;
   /** Use `{days}` for the service-class range, e.g. 1-2 */
   cardOnItsWay: string;
@@ -70,6 +71,7 @@ const UI: Record<Locale, UiMessages> = {
     send: "Send",
     sending: "Sending...",
     pickAnother: "Pick another",
+    back: "Back",
     yourLetter: "Your letter:",
     cardOnItsWay:
       "Your card is on its way! It will arrive in {days} working days",
@@ -119,6 +121,7 @@ const UI: Record<Locale, UiMessages> = {
     send: "보내기",
     sending: "보내는 중...",
     pickAnother: "다른 카드 고르기",
+    back: "뒤로",
     yourLetter: "당신의 편지:",
     cardOnItsWay: "편지가 발송됐습니다! 약 {days}일 후에 도착할 예정입니다",
     serviceDaysFirst: "1-2",
