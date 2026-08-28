@@ -5,6 +5,7 @@ import { Fragment, useEffect, type ReactNode } from "react";
 import { Button } from "./Button";
 import { getViewDetailsCopy } from "@/data/view-details";
 import { useLocale } from "@/lib/locale";
+import { preventArtworkContextMenu } from "@/lib/artwork-protection";
 
 const BOJAGI_HREF =
   "https://collections.vam.ac.uk/item/O1241357/wrapping-cloth/";
@@ -124,7 +125,10 @@ export function ViewDetailsModal({
         onClick={onClose}
       />
 
-      <div className="relative z-10 flex h-[min(100dvh-2rem,42rem)] w-full max-w-[24rem] flex-col overflow-hidden shadow-xl sm:h-[min(100dvh-3rem,48rem)] sm:max-w-[26rem]">
+      <div
+        className="artwork-protected relative z-10 flex h-[min(100dvh-2rem,42rem)] w-full max-w-[24rem] flex-col overflow-hidden shadow-xl sm:h-[min(100dvh-3rem,48rem)] sm:max-w-[26rem]"
+        onContextMenu={preventArtworkContextMenu}
+      >
         <Image
           src="/images/view_details.png"
           alt=""

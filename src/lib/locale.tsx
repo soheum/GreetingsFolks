@@ -37,6 +37,7 @@ type UiMessages = {
   yourName: string;
   writeLetterPlaceholder: string;
   openLetterHint: string;
+  desktopOnlyBanner: string;
   footerAbout: string;
   footerArchive: string;
   footerCta: string;
@@ -87,6 +88,8 @@ const UI: Record<Locale, UiMessages> = {
     yourName: "Your name",
     writeLetterPlaceholder: "Write your letter here...",
     openLetterHint: "Click on the letter to open the card",
+    desktopOnlyBanner:
+      "This service is only available on desktop.\nPlease use your computer to send a card.",
     footerAbout:
       "GREETINGS FOLKs is a stationery brand that interprets the timeless charm and heartfelt spirit of traditional paintings and objects into a modern lifestyle.",
     footerArchive:
@@ -136,6 +139,8 @@ const UI: Record<Locale, UiMessages> = {
     yourName: "보내는 사람 이름",
     writeLetterPlaceholder: "여기에 편지를 적으세요",
     openLetterHint: "편지를 클릭하면 카드가 열립니다",
+    desktopOnlyBanner:
+      "이 서비스는 데스크톱에서만 이용할 수 있습니다.\n카드를 보내려면 컴퓨터를 사용해 주세요.",
     footerAbout:
       "GREETINGS FOLKs는 옛것의 아름다운 마음이 깃든 생활품에서 영감을 받아 현대적인 라이프스타일로 재해석한 문구 브랜드입니다.",
     footerArchive:

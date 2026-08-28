@@ -13,6 +13,7 @@ import { ViewDetailsModal } from "./ViewDetailsModal";
 import type { Envelope, EnvelopeLayer, EnvelopeTopFlap } from "@/data/envelopes";
 import { useLocale } from "@/lib/locale";
 import { useMobileZoomFactor } from "@/lib/envelope-zoom";
+import { preventArtworkContextMenu } from "@/lib/artwork-protection";
 
 const FRAME_MS = 600;
 const ZOOM_MS = 1300;
@@ -1041,7 +1042,10 @@ function ReceiveEnvelopeOpen({
   const zoomTranslateY = envelope.zoomTranslateY ?? "0px";
 
   return (
-    <section className="receive-envelope-stage relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]">
+    <section
+      className="receive-envelope-stage artwork-protected relative flex min-h-0 flex-1 overflow-hidden bg-[#F3F9F9]"
+      onContextMenu={preventArtworkContextMenu}
+    >
       <div className="absolute inset-0 overflow-hidden">
         <div
           className={`receive-envelope-motion ${motionClassForStage(stage)}`}

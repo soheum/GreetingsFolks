@@ -22,7 +22,13 @@ import {
 } from "@/data/envelopes";
 import { useLocale } from "@/lib/locale";
 import { canonicalCardImage } from "@/lib/card-images";
-import { useMobileZoomFactor } from "@/lib/envelope-zoom";
+import {
+  MOBILE_ZOOM_MQ,
+  isMobileViewport,
+  resetMobileViewportZoom,
+  useMobileZoomFactor,
+} from "@/lib/envelope-zoom";
+import { preventArtworkContextMenu } from "@/lib/artwork-protection";
 
 const CENTER_HEIGHT = "var(--envelope-center-height)";
 const SIDE_HEIGHT = "var(--envelope-side-height)";
@@ -687,6 +693,7 @@ function LetterFlipLayer({
   composeStage,
   onMessageLeftChange,
   onMessageRightChange,
+  onWritingBlur,
 }: {
   layer: EnvelopeLayer;
   envelope: Envelope;
@@ -698,6 +705,7 @@ function LetterFlipLayer({
   composeStage?: ComposeStage | null;
   onMessageLeftChange?: (message: string) => void;
   onMessageRightChange?: (message: string) => void;
+  onWritingBlur?: () => void;
 }) {
   const { t } = useLocale();
   const leftRef = useRef<HTMLTextAreaElement>(null);
@@ -1089,8 +1097,10 @@ function LetterFlipLayer({
         id="card-message-left"
         value={leftValue}
         readOnly={!canWrite}
+        enterKeyHint="done"
         onChange={(event) => handleLeftChange(event.target.value)}
         onKeyDown={handleLeftKeyDown}
+        onBlur={onWritingBlur}
         placeholder={t.writeLetterPlaceholder}
         className={textareaClassName}
       />
@@ -1106,8 +1116,10 @@ function LetterFlipLayer({
             id="card-message-right"
             value={rightValue}
             readOnly={!canWrite}
+            enterKeyHint="done"
             onChange={(event) => handleRightChange(event.target.value)}
             onKeyDown={handleRightKeyDown}
+            onBlur={onWritingBlur}
             placeholder={isFoldSplit ? "" : "Continue here..."}
             className={textareaClassName}
           />
@@ -1769,6 +1781,7 @@ function EnvelopeVisual({
   onRecipientEmailChange,
   onAddressSubmit,
   onPreviousClick,
+  onWritingBlur,
 }: {
   envelope: Envelope;
   priority?: boolean;
@@ -1794,6 +1807,7 @@ function EnvelopeVisual({
   onRecipientEmailChange?: (email: string) => void;
   onAddressSubmit?: (event: FormEvent<HTMLFormElement>) => void;
   onPreviousClick?: () => void;
+  onWritingBlur?: () => void;
 }) {
   const { t } = useLocale();
   const load = imageFetchProps(priority, eager);
@@ -2017,6 +2031,7 @@ function EnvelopeVisual({
               onChange={(event) =>
                 onRecipientEmailChange?.(event.target.value)
               }
+              onBlur={resetMobileViewportZoom}
               placeholder="friend@example.com"
               className="min-w-0 border-0 bg-transparent text-right text-[0.5rem] text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60 [font-family:var(--font-meta)]"
             />
@@ -2035,6 +2050,7 @@ function EnvelopeVisual({
               disabled={composeStage === "sending"}
               onChange={(event) => onSenderNameChange?.(event.target.value)}
               onBlur={() => {
+                resetMobileViewportZoom();
                 if (senderName.trim()) {
                   setShowStamp(true);
                 }
@@ -2152,6 +2168,7 @@ function EnvelopeVisual({
                       messageRight={messageRight}
                       onMessageLeftChange={onMessageLeftChange}
                       onMessageRightChange={onMessageRightChange}
+                      onWritingBlur={onWritingBlur}
                     />
                   );
                 }
@@ -2387,6 +2404,9 @@ export function PostcardStack() {
   const swipeConsumedRef = useRef(false);
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const skipWritingDismissRef = useRef(false);
+  const composeStageRef = useRef(composeStage);
+  composeStageRef.current = composeStage;
   const carouselChromeRef = useRef<HTMLDivElement>(null);
   const [carouselChromeHeightPx, setCarouselChromeHeightPx] = useState<
     number | null
@@ -2452,6 +2472,7 @@ export function PostcardStack() {
   const closeZoom = useCallback(() => {
     clearZoomTimers();
     clearActionTimers();
+    skipWritingDismissRef.current = false;
     setZoomedIndex(null);
     setZoomPhase(null);
     setComposeStage(null);
@@ -2465,7 +2486,102 @@ export function PostcardStack() {
     setSendError(null);
     setSuccessPhase(null);
     setIsTopFlapCompositionReady(false);
+    resetMobileViewportZoom();
   }, [clearActionTimers, clearZoomTimers]);
+
+  useEffect(() => {
+    if (composeStage !== "writing") {
+      skipWritingDismissRef.current = false;
+      return;
+    }
+
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      if (target.closest("button, input, label, select")) {
+        skipWritingDismissRef.current = true;
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [composeStage]);
+
+  const handleWritingBlur = useCallback(() => {
+    resetMobileViewportZoom();
+
+    window.setTimeout(() => {
+      if (skipWritingDismissRef.current) {
+        skipWritingDismissRef.current = false;
+        return;
+      }
+
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLTextAreaElement &&
+        active.closest(".letter-compose")
+      ) {
+        return;
+      }
+
+      if (!window.matchMedia(MOBILE_ZOOM_MQ).matches) {
+        return;
+      }
+
+      if (composeStageRef.current !== "writing") {
+        return;
+      }
+
+      closeZoom();
+    }, 180);
+  }, [closeZoom]);
+
+  useEffect(() => {
+    if (composeStage !== "writing") {
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) {
+      return;
+    }
+
+    let previousHeight = visualViewport.height;
+
+    const onResize = () => {
+      const nextHeight = visualViewport.height;
+      const keyboardClosed = nextHeight - previousHeight >= 150;
+      previousHeight = nextHeight;
+
+      if (!keyboardClosed) {
+        return;
+      }
+
+      if (skipWritingDismissRef.current) {
+        return;
+      }
+
+      if (composeStageRef.current !== "writing") {
+        return;
+      }
+
+      if (!window.matchMedia(MOBILE_ZOOM_MQ).matches) {
+        return;
+      }
+
+      closeZoom();
+    };
+
+    visualViewport.addEventListener("resize", onResize);
+    return () => {
+      visualViewport.removeEventListener("resize", onResize);
+    };
+  }, [closeZoom, composeStage]);
 
   useEffect(
     () => () => {
@@ -2512,7 +2628,7 @@ export function PostcardStack() {
     (index: number) => {
       const envelope = ENVELOPES[wrapEnvelopeIndex(index)];
 
-      if (!envelope.sendable || composeStage !== null) {
+      if (!envelope.sendable || composeStage !== null || isMobileViewport()) {
         return;
       }
 
@@ -2532,7 +2648,7 @@ export function PostcardStack() {
 
   const openZoom = useCallback(
     (index: number) => {
-      if (zoomedIndex !== null) {
+      if (zoomedIndex !== null || isMobileViewport()) {
         return;
       }
 
@@ -2683,6 +2799,10 @@ export function PostcardStack() {
   ]);
 
   const handleBottomSendCard = useCallback(() => {
+    if (isMobileViewport()) {
+      return;
+    }
+
     if (zoomedIndex === null || zoomPhase !== "done") {
       return;
     }
@@ -2717,6 +2837,10 @@ export function PostcardStack() {
   const handleSendCard = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+
+      if (isMobileViewport()) {
+        return;
+      }
 
       if (
         !zoomedEnvelope?.sendable ||
@@ -2897,12 +3021,13 @@ export function PostcardStack() {
 
   return (
     <section
-      className="postcard-stack relative min-h-0 flex-1 touch-pan-y overscroll-x-none bg-[#F3F9F9]"
+      className="postcard-stack artwork-protected relative min-h-0 flex-1 touch-pan-y overscroll-x-none bg-[#F3F9F9]"
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onClickCapture={handleClickCapture}
+      onContextMenu={preventArtworkContextMenu}
     >
       <div
         className={`absolute inset-0 overflow-hidden transition-colors duration-300 ${
@@ -3136,6 +3261,9 @@ export function PostcardStack() {
                     isSendableZoomTarget ? handleSendCard : undefined
                   }
                   onPreviousClick={isSendableZoomTarget ? closeZoom : undefined}
+                  onWritingBlur={
+                    isSendableZoomTarget ? handleWritingBlur : undefined
+                  }
                 />
               </div>
             );
@@ -3211,7 +3339,11 @@ export function PostcardStack() {
               <Button variant="outline" onClick={() => setDetailsOpen(true)}>
                 {t.viewDetails}
               </Button>
-              <Button variant="primary" onClick={() => openZoom(activeIndex)}>
+              <Button
+                variant="primary"
+                className="max-md:pointer-events-none max-md:cursor-not-allowed max-md:opacity-40"
+                onClick={() => openZoom(activeIndex)}
+              >
                 {t.sendCard}
                 <span aria-hidden className="text-sm leading-none">
                   ↗

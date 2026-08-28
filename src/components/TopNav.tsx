@@ -127,6 +127,13 @@ export function TopNav() {
           </button>
         </nav>
 
+        <p
+          role="status"
+          className="-mx-6 bg-[#ec0000] px-4 py-2.5 text-center text-sm leading-snug whitespace-pre-line text-white sm:-mx-8 md:hidden"
+        >
+          {t.desktopOnlyBanner}
+        </p>
+
         {/* Mobile menu overlay */}
         {menuOpen ? (
           <div

@@ -344,6 +344,13 @@ body.envelope-zoom-active footer {
   --carousel-chrome-offset: 13rem;
 }
 
+/* Discourage casual image save/drag on artwork (not a security boundary). */
+.artwork-protected img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 @media (min-width: 640px) {
   .postcard-stack,
   .receive-envelope-stage {
