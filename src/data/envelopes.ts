@@ -123,7 +123,7 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
     title: "Full Moon Dalhangari",
     subtitle: "May abundant fortune always be with you",
     description:
-      "A card to hold your heartfelt words, inspired by the graceful beauty of Korea.",
+      "A card to hold your heartfelt words,\n inspired by the graceful beauty of Korea.",
     alt: "Yellow envelope",
     width: 1907,
     height: 2693,
@@ -179,7 +179,7 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
     title: "Strawberry",
     subtitle: "May happiness come in everyday moments",
     description:
-      "A card inspired by the wild raspberry in Chochungdo (草蟲圖)*,\nsymbolising abundance, longevity and prosperity",
+      "A card inspired by the wild raspberry in Chochungdo (草蟲圖)*, symbolising abundance, longevity and prosperity",
     descriptionNote:
       'Chochungdo(草蟲圖)* by Shin Saimdang, or "paintings of grasses and insects," delicately captures the small lives of nature.',
     alt: "Red envelope",
@@ -238,7 +238,7 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
     title: "Birthday Guard",
     subtitle: "A guardian of your birthday",
     description:
-      "A birthday card with a heartfelt message from a mystical white tiger",
+      "A birthday card with a heartfelt message \nfrom a mystical white tiger",
     alt: "Pink envelope",
     width: 1920,
     height: 2418,
@@ -476,7 +476,7 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
     title: "Jade Rabbit's Easter",
     subtitle: "With huge happiness",
     description:
-      "Dancing jade rabbits beneath the cassia tree bring hope this Easter",
+      "Dancing jade rabbits beneath the cassia tree\n bring hope this Easter",
     alt: "Yellow linen envelope",
     width: 1897,
     height: 2334,
@@ -643,7 +643,7 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
     title: "Winter Pinetree",
     subtitle: "Evergreen Happiness",
     description:
-      "Featuring the evergreen pines of Irworobongdo* and a playful rabbit beneath a snowy moon",
+      "Featuring the evergreen pines of Irworobongdo* \nand a playful rabbit beneath a snowy moon",
     alt: "Blue winter pine envelope",
     width: 1455,
     height: 3324,
