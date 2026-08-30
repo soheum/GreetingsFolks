@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -241,8 +242,14 @@ type LocaleContextValue = {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
+export function LocaleProvider({
+  children,
+  defaultLocale = "en",
+}: {
+  children: ReactNode;
+  defaultLocale?: Locale;
+}) {
+  const [locale, setLocaleState] = useState<Locale>(defaultLocale);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
@@ -250,6 +257,12 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       document.documentElement.lang = next === "ko" ? "ko" : "en";
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = defaultLocale === "ko" ? "ko" : "en";
+    }
+  }, [defaultLocale]);
 
   const value = useMemo<LocaleContextValue>(
     () => ({

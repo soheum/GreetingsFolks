@@ -32,7 +32,7 @@ const weightClasses: Record<ButtonWeight, string> = {
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
-  nav: `${buttonTypography} text-lg text-neutral-900 transition-colors hover:text-red-600`,
+  nav: `${buttonTypography} text-base text-neutral-900 transition-colors hover:text-red-600`,
   outline: `${buttonTypography} text-sm inline-flex items-center justify-center bg-white text-neutral-900 ring-1 ring-inset ring-neutral-900 transition hover:bg-neutral-50`,
   primary: `${buttonTypography} text-sm inline-flex items-center justify-center gap-2 bg-[#ec0000] text-white transition hover:bg-[#d40000] disabled:cursor-not-allowed disabled:opacity-40`,
   unstyled: "",

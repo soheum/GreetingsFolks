@@ -39,7 +39,7 @@ export function TopNav() {
   };
 
   const localeButtonClass = (value: Locale) =>
-    `font-display cursor-pointer text-lg tracking-[0.05em] uppercase transition-colors ${
+    `font-display cursor-pointer text-base tracking-[0.05em] uppercase transition-colors ${
       locale === value
         ? "font-normal text-[#ec0000]"
         : "font-normal text-neutral-900 hover:text-red-600"
@@ -60,7 +60,7 @@ export function TopNav() {
       >
         EN
       </button>
-      <span aria-hidden className="text-lg text-neutral-400">
+      <span aria-hidden className="text-base text-neutral-400">
         /
       </span>
       <button

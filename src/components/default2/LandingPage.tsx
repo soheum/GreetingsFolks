@@ -65,7 +65,19 @@ function activeEnvelopeOffset(activeIndex: number) {
   return `calc(${offsetParts.join(" + ")})`;
 }
 
-const TYPE_PAUSE_AFTER = ["in England ", "world.", "day, ", "charge.", "sent, "] as const;
+const TYPE_PAUSE_AFTER = [
+  "in England ",
+  "world.",
+  "day, ",
+  "charge.",
+  "sent, ",
+  "돌면서",
+  "시작한",
+  "서비스입니다.",
+  "편지이며",
+  "수 있습니다.",
+  "없으며,",
+] as const;
 const TYPE_MS = 60;
 const TYPE_SPACE_MS = 12;
 const TYPE_BREAK_MS = 360;
@@ -112,9 +124,23 @@ function TypewriterCopy({
   const soundWantedRef = useRef(false);
   onDoneRef.current = onDone;
 
-  const pauseTypewriterSound = () => {
+  const stopTypewriterSound = () => {
     soundWantedRef.current = false;
-    audioRef.current?.pause();
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.volume = 0;
+    audio.pause();
+  };
+
+  const duckTypewriterSound = () => {
+    soundWantedRef.current = false;
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.volume = 0;
   };
 
   const playTypewriterSound = () => {
@@ -124,6 +150,7 @@ function TypewriterCopy({
     }
 
     soundWantedRef.current = true;
+    audio.volume = TYPEWRITER_AUDIO_VOLUME;
     void audio.play().catch(() => {});
   };
 
@@ -131,21 +158,27 @@ function TypewriterCopy({
     const audio = new Audio(TYPEWRITER_AUDIO_SRC);
     audio.loop = true;
     audio.preload = "auto";
-    audio.volume = TYPEWRITER_AUDIO_VOLUME;
+    audio.volume = 0;
     audioRef.current = audio;
 
-    const resumeIfWanted = () => {
-      if (soundWantedRef.current) {
-        void audio.play().catch(() => {});
-      }
+    const unlock = () => {
+      audio.volume = soundWantedRef.current ? TYPEWRITER_AUDIO_VOLUME : 0;
+      void audio
+        .play()
+        .then(() => {
+          if (!soundWantedRef.current) {
+            audio.volume = 0;
+          }
+        })
+        .catch(() => {});
     };
 
-    document.addEventListener("pointerdown", resumeIfWanted);
-    document.addEventListener("keydown", resumeIfWanted);
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
 
     return () => {
-      document.removeEventListener("pointerdown", resumeIfWanted);
-      document.removeEventListener("keydown", resumeIfWanted);
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
       soundWantedRef.current = false;
       audio.pause();
       audio.removeAttribute("src");
@@ -156,7 +189,7 @@ function TypewriterCopy({
 
   useEffect(() => {
     if (skip) {
-      pauseTypewriterSound();
+      stopTypewriterSound();
       setIndex(full.length);
       doneRef.current = true;
       return;
@@ -168,12 +201,12 @@ function TypewriterCopy({
 
   useEffect(() => {
     if (skip || !active) {
-      pauseTypewriterSound();
+      stopTypewriterSound();
       return;
     }
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      pauseTypewriterSound();
+      stopTypewriterSound();
       setIndex(full.length);
       if (!doneRef.current) {
         doneRef.current = true;
@@ -183,7 +216,7 @@ function TypewriterCopy({
     }
 
     if (index >= full.length) {
-      pauseTypewriterSound();
+      stopTypewriterSound();
       if (!doneRef.current) {
         doneRef.current = true;
         onDoneRef.current();
@@ -193,7 +226,7 @@ function TypewriterCopy({
 
     const delay = typeDelay(full, index);
     if (delay >= TYPE_BREAK_MS) {
-      pauseTypewriterSound();
+      duckTypewriterSound();
     } else {
       playTypewriterSound();
     }
@@ -335,8 +368,48 @@ function EnvelopePeek({ activeIndex }: { activeIndex: number }) {
   );
 }
 
+function LanguageSwitcher({ className = "" }: { className?: string }) {
+  const { locale, setLocale } = useLocale();
+
+  return (
+    <div
+      className={`flex items-center justify-center gap-2 ${className}`.trim()}
+      role="group"
+      aria-label="Language"
+    >
+      <button
+        type="button"
+        className={`font-display cursor-pointer text-base tracking-[0.05em] uppercase transition-colors ${
+          locale === "ko"
+            ? "font-normal text-[#ec0000]"
+            : "font-normal text-neutral-900 hover:text-red-600"
+        }`}
+        aria-pressed={locale === "ko"}
+        onClick={() => setLocale("ko")}
+      >
+        한국어
+      </button>
+      <span aria-hidden className="text-base text-neutral-400">
+        /
+      </span>
+      <button
+        type="button"
+        className={`font-display cursor-pointer text-base tracking-[0.05em] uppercase transition-colors ${
+          locale === "en"
+            ? "font-normal text-[#ec0000]"
+            : "font-normal text-neutral-900 hover:text-red-600"
+        }`}
+        aria-pressed={locale === "en"}
+        onClick={() => setLocale("en")}
+      >
+        EN
+      </button>
+    </div>
+  );
+}
+
 export function LandingPage() {
-  const { locale, setLocale, t } = useLocale();
+  const { locale, t } = useLocale();
   const copy = LANDING_COPY[locale];
   const rootRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
@@ -500,35 +573,7 @@ export function LandingPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2" role="group" aria-label="Language">
-            <button
-              type="button"
-              className={`font-display cursor-pointer text-lg tracking-[0.05em] uppercase transition-colors ${
-                locale === "ko"
-                  ? "font-normal text-[#ec0000]"
-                  : "font-normal text-neutral-900 hover:text-red-600"
-              }`}
-              aria-pressed={locale === "ko"}
-              onClick={() => setLocale("ko")}
-            >
-              한국어
-            </button>
-            <span aria-hidden className="text-lg text-neutral-400">
-              /
-            </span>
-            <button
-              type="button"
-              className={`font-display cursor-pointer text-lg tracking-[0.05em] uppercase transition-colors ${
-                locale === "en"
-                  ? "font-normal text-[#ec0000]"
-                  : "font-normal text-neutral-900 hover:text-red-600"
-              }`}
-              aria-pressed={locale === "en"}
-              onClick={() => setLocale("en")}
-            >
-              EN
-            </button>
-          </div>
+          <LanguageSwitcher />
         </header>
 
         {gallery ? (
@@ -545,22 +590,27 @@ export function LandingPage() {
                   onDone={() => setTypedDone(true)}
                 />
               </div>
-              <button
-                type="button"
-                onClick={showChrome ? scrollToGallery : skipToMain}
-                aria-label={showChrome ? copy.scrollDown : copy.skipToMain}
-                className={`mb-3 flex shrink-0 cursor-pointer items-center text-sm text-neutral-700 transition-opacity duration-500 sm:mb-4 ${
+              <div
+                className={`mb-3 flex shrink-0 flex-col items-center gap-3 transition-opacity duration-500 sm:mb-4 ${
                   playIntro || showChrome
                     ? "opacity-100"
                     : "pointer-events-none opacity-0"
                 }`}
               >
-                {showChrome ? (
-                  <ScrollDownLetters text={copy.scrollDown} active={showChrome} />
-                ) : (
-                  copy.skipToMain
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={showChrome ? scrollToGallery : skipToMain}
+                  aria-label={showChrome ? copy.scrollDown : copy.skipToMain}
+                  className="flex cursor-pointer items-center text-sm text-neutral-700"
+                >
+                  {showChrome ? (
+                    <ScrollDownLetters text={copy.scrollDown} active={showChrome} />
+                  ) : (
+                    copy.skipToMain
+                  )}
+                </button>
+                {playIntro && !showChrome ? <LanguageSwitcher /> : null}
+              </div>
             </div>
 
             <div
