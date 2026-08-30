@@ -11,7 +11,7 @@ import type {
   ReactNode,
   WheelEvent,
 } from "react";
-import { Button } from "./Button";
+import { Button } from "../Button";
 import { ViewDetailsModal } from "./ViewDetailsModal";
 import {
   ENVELOPES,
@@ -21,7 +21,7 @@ import {
   type EnvelopeTopFlap,
 } from "@/data/envelopes";
 import { useLocale } from "@/lib/locale";
-import { canonicalCardImage } from "@/lib/card-images";
+import { canonicalCardImage, closedEnvelopeImageFromBottom } from "@/lib/card-images";
 import {
   MOBILE_ZOOM_MQ,
   isMobileViewport,
@@ -1759,7 +1759,7 @@ function TopFlapLayer({
   );
 }
 
-function EnvelopeVisual({
+export function EnvelopeVisual({
   envelope,
   priority = false,
   eager = false,
@@ -1767,6 +1767,7 @@ function EnvelopeVisual({
   onCarouselSelect,
   isZoomedEnvelope = false,
   isCarouselActive = false,
+  peekFromTop = false,
   isLoopResetting = false,
   isClosing = false,
   isTopFlapCompositionReady = false,
@@ -1792,6 +1793,8 @@ function EnvelopeVisual({
   isZoomedEnvelope?: boolean;
   /** Home carousel: only the centered card is open with the letter visible */
   isCarouselActive?: boolean;
+  /** Landing peek strip: pin artwork to the top so the visible slice shows envelope tops */
+  peekFromTop?: boolean;
   /** Infinite-loop remap: same card, new slot — don't replay flap/letter entrance */
   isLoopResetting?: boolean;
   isClosing?: boolean;
@@ -1887,6 +1890,7 @@ function EnvelopeVisual({
     return () => {
       clearTimeout(openTimer);
       clearTimeout(openedTimer);
+      carouselFlapSessionRef.current = false;
     };
   }, [
     isCarouselActive,
@@ -1896,21 +1900,25 @@ function EnvelopeVisual({
   ]);
 
   const isSealedCarousel = !isZoomedEnvelope && !isCarouselActive;
+  const objectPositionClass = peekFromTop ? "object-top" : "object-bottom";
   const topFlapStep =
-    isZoomedEnvelope && envelope.topFlap
-      ? (getTopFlapStep(composeStage) ?? "open")
-      : supportsCarouselFlapOpen && !isZoomedEnvelope
-        ? carouselFlapStep
-        : isSealedCarousel && envelope.topFlap
-          ? "closed"
-          : null;
+    peekFromTop && envelope.topFlap
+      ? "closed"
+      : isZoomedEnvelope && envelope.topFlap
+        ? (getTopFlapStep(composeStage) ?? "open")
+        : supportsCarouselFlapOpen && !isZoomedEnvelope
+          ? carouselFlapStep
+          : isSealedCarousel && envelope.topFlap
+            ? "closed"
+            : null;
   const showCarouselLetter =
     !isSealedCarousel &&
     (!supportsCarouselFlapOpen ||
       carouselFlapStep === "opening" ||
       carouselFlapStep === "open");
   const shouldRenderComposedFlapBase = Boolean(
-    envelope.topFlap?.bottomInsideSrc &&
+    !peekFromTop &&
+      envelope.topFlap?.bottomInsideSrc &&
       envelope.topFlap.bottomInsideWidth &&
       envelope.topFlap.bottomInsideHeight &&
       // flat_1 also uses backSrc as the sealed base — stacking both looks washed/transparent
@@ -2096,7 +2104,9 @@ function EnvelopeVisual({
                 className="absolute inset-0 z-30 cursor-pointer border-0 bg-transparent p-0"
               />
             ) : null}
-            {hasCarouselFlapReveal(envelope) && envelope.topFlap?.backSrc ? (
+            { !peekFromTop &&
+            hasCarouselFlapReveal(envelope) &&
+            envelope.topFlap?.backSrc ? (
               <Image
                 src={envelope.topFlap.backSrc}
                 alt=""
@@ -2123,7 +2133,7 @@ function EnvelopeVisual({
                 const letterVisible = showCarouselLetter || isZoomedEnvelope;
 
                 if (!letterVisible) {
-                  if (!eager) {
+                  if (peekFromTop || !eager) {
                     return null;
                   }
 
@@ -2209,6 +2219,10 @@ function EnvelopeVisual({
                 );
               }
 
+              if (peekFromTop && layer.anchor === "fill") {
+                return null;
+              }
+
               const hideOpenFill =
                 layer.anchor === "fill" &&
                 Boolean(envelope.topFlap) &&
@@ -2221,6 +2235,24 @@ function EnvelopeVisual({
                 (layer.src.includes("flat_7") || layer.src.includes("flat_8"));
 
               if (layer.anchor === "bottom") {
+                if (peekFromTop) {
+                  const closedSrc = closedEnvelopeImageFromBottom(layer.src);
+
+                  return (
+                    <Image
+                      key={closedSrc}
+                      src={closedSrc}
+                      alt=""
+                      aria-hidden
+                      width={layer.width}
+                      height={layer.height}
+                      {...load}
+                      style={{ zIndex: layer.zIndex }}
+                      className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${objectPositionClass}`}
+                    />
+                  );
+                }
+
                 // Match front-face backSrc seam inset for flat_10 only
                 const isFlat10Bottom = layer.src.includes("/flat_10_");
                 // flat_9 bottom sits slightly left of the back art
@@ -2270,7 +2302,7 @@ function EnvelopeVisual({
                   height={layer.height}
                   {...load}
                   style={{ zIndex: layer.zIndex }}
-                  className={`pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom${
+                  className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${objectPositionClass}${
                     hideOpenFill ? " opacity-0" : ""
                   }`}
                 />
@@ -2290,7 +2322,7 @@ function EnvelopeVisual({
                 } pointer-events-none absolute bottom-0 left-0 h-auto w-full`}
               />
             )}
-            {envelope.topFlap && topFlapStep && (
+            {envelope.topFlap && topFlapStep && !peekFromTop ? (
               <TopFlapLayer
                 flap={envelope.topFlap}
                 priority={priority}
@@ -2302,7 +2334,7 @@ function EnvelopeVisual({
                     : isComposedFlapVisible
                 }
               />
-            )}
+            ) : null}
           </div>
           {hasBackFace && (
             <div className="envelope-back-face">
@@ -2367,14 +2399,18 @@ function EnvelopeVisual({
       width={envelope.width}
       height={envelope.height}
       {...load}
-      className={`h-full w-auto object-contain object-bottom ${
+      className={`h-full w-auto object-contain ${objectPositionClass} ${
         isClosing && !envelope.sendable ? "envelope-visual--closing" : ""
       }`}
     />
   );
 }
 
-export function PostcardStack() {
+export function PostcardStack({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t, envelopeCopy } = useLocale();
   const mobileZoomFactor = useMobileZoomFactor();
   const [activeIndex, setActiveIndex] = useState(
@@ -2414,6 +2450,25 @@ export function PostcardStack() {
   >(null);
   const isZooming = zoomPhase !== null;
   const isComposing = composeStage !== null;
+  const [openEnabled, setOpenEnabled] = useState(!embedded);
+
+  useEffect(() => {
+    if (!embedded) {
+      return;
+    }
+
+    let innerFrame = 0;
+    const outerFrame = requestAnimationFrame(() => {
+      innerFrame = requestAnimationFrame(() => {
+        setOpenEnabled(true);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(outerFrame);
+      cancelAnimationFrame(innerFrame);
+    };
+  }, [embedded]);
   // Freeze carousel math while zooming so width/offset don't drift as the card grows.
   const activeOffset = activeEnvelopeOffset(activeIndex, null);
   const activeEnvelopeIndex = wrapEnvelopeIndex(activeIndex);
@@ -2600,6 +2655,27 @@ export function PostcardStack() {
       document.body.classList.remove("envelope-zoom-active");
     };
   }, [zoomedIndex]);
+
+  useEffect(() => {
+    if (!isZooming) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const scroller = document.querySelector("[data-default2-scroll]");
+    const previousScrollerOverflow =
+      scroller instanceof HTMLElement ? scroller.style.overflow : "";
+    if (scroller instanceof HTMLElement) {
+      scroller.style.overflow = "hidden";
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (scroller instanceof HTMLElement) {
+        scroller.style.overflow = previousScrollerOverflow;
+      }
+    };
+  }, [isZooming]);
 
   useEffect(() => {
     if (isZooming) {
@@ -2949,10 +3025,12 @@ export function PostcardStack() {
         return;
       }
 
-      const primaryDelta =
-        Math.abs(event.deltaX) > Math.abs(event.deltaY)
-          ? event.deltaX
-          : event.deltaY;
+      const isHorizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+      if (embedded && !isHorizontal) {
+        return;
+      }
+
+      const primaryDelta = isHorizontal ? event.deltaX : event.deltaY;
 
       if (Math.abs(primaryDelta) <= 10) {
         return;
@@ -2961,7 +3039,7 @@ export function PostcardStack() {
       event.preventDefault();
       stepCarousel(primaryDelta > 0 ? 1 : -1);
     },
-    [isComposing, isZooming, stepCarousel],
+    [embedded, isComposing, isZooming, stepCarousel],
   );
 
   const handlePointerDown = useCallback(
@@ -3021,9 +3099,12 @@ export function PostcardStack() {
     event.stopPropagation();
   }, []);
 
+  const surfaceClass = embedded ? "bg-white" : "bg-[#F3F9F9]";
+  const surfaceOverlayClass = embedded ? "bg-white" : "bg-[#f3f9f9]";
+
   return (
     <section
-      className="postcard-stack artwork-protected relative min-h-0 flex-1 touch-pan-y overscroll-x-none bg-[#F3F9F9]"
+      className={`postcard-stack artwork-protected relative min-h-0 flex-1 touch-pan-y overscroll-x-none ${surfaceClass}`}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
@@ -3033,7 +3114,7 @@ export function PostcardStack() {
     >
       <div
         className={`absolute inset-0 overflow-hidden transition-colors duration-300 ${
-          showSuccessPostbox ? "bg-[#DF0000]" : "bg-[#F3F9F9]"
+          showSuccessPostbox ? "bg-[#DF0000]" : surfaceClass
         }`}
       >
         {isZooming && showZoomClose && (
@@ -3069,7 +3150,7 @@ export function PostcardStack() {
               ? 0
               : -1
           }
-          className={`absolute inset-0 z-10 bg-[#f3f9f9] transition-opacity ease-out ${
+          className={`absolute inset-0 z-10 ${surfaceOverlayClass} transition-opacity ease-out ${
             (zoomPhase === "growing" || zoomPhase === "done") &&
             !showSuccessPostbox
               ? "pointer-events-auto opacity-100 duration-[900ms]"
@@ -3115,9 +3196,11 @@ export function PostcardStack() {
           style={{
             bottom: isZooming
               ? ZOOMED_CHROME_OFFSET
-              : carouselChromeHeightPx != null
-                ? `${carouselChromeHeightPx}px`
-                : CAROUSEL_CHROME_OFFSET,
+              : embedded
+                ? 0
+                : carouselChromeHeightPx != null
+                  ? `${carouselChromeHeightPx}px`
+                  : CAROUSEL_CHROME_OFFSET,
             gap: ROW_GAP,
             transform: `translateX(calc(-1 * ${activeOffset}))`,
             transition: isLoopResetting
@@ -3227,7 +3310,7 @@ export function PostcardStack() {
                       : () => setActiveIndex(index)
                   }
                   isZoomedEnvelope={zoomPhase === "done" && zoomedIndex === index}
-                  isCarouselActive={isActive}
+                  isCarouselActive={isActive && openEnabled}
                   isLoopResetting={isLoopResetting}
                   isClosing={
                     isSendableZoomTarget &&
@@ -3302,12 +3385,20 @@ export function PostcardStack() {
 
       <div
         ref={carouselChromeRef}
-        className={`absolute inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white px-10 py-12 text-center transition-opacity duration-500 ease-out md:px-6 md:py-8 ${
+        className={`absolute inset-x-0 z-30 flex flex-col items-center justify-center bg-white text-center transition-opacity duration-500 ease-out ${
+          embedded
+            ? "top-0 px-8 py-8 md:px-6"
+            : "bottom-0 px-10 py-12 md:px-6 md:py-8"
+        } ${
           isZooming
             ? "pointer-events-none opacity-0"
             : "pointer-events-auto opacity-100"
         }`}
-        style={{ minHeight: "var(--carousel-chrome-offset)" }}
+        style={
+          embedded
+            ? { bottom: "var(--envelope-center-height)" }
+            : { minHeight: "var(--carousel-chrome-offset)" }
+        }
         aria-hidden={isZooming}
       >
         <div className="relative flex w-full max-w-sm flex-col items-center md:max-w-sm">
@@ -3344,7 +3435,9 @@ export function PostcardStack() {
             <EnvelopeDescription
               description={activeCopy.description}
               descriptionNote={activeCopy.descriptionNote}
-              className="mt-3 w-full text-sm leading-relaxed text-neutral-600 md:hidden"
+              className={`mt-3 w-full text-sm leading-relaxed text-neutral-600${
+                embedded ? "" : " md:hidden"
+              }`}
             />
             <div className="mt-10 flex items-center justify-center gap-3">
               <Button variant="outline" onClick={() => setDetailsOpen(true)}>

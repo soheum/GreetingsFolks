@@ -22,6 +22,11 @@ export function closedEnvelopeImage(cardImage: string) {
   return `/images/${base}_closed.webp`;
 }
 
+/** Landing peek strip: flat_6_bottom.webp → flat_6_closed.webp */
+export function closedEnvelopeImageFromBottom(bottomSrc: string) {
+  return bottomSrc.replace(/_bottom\.webp$/i, "_closed.webp");
+}
+
 /** "Card is ready" email art: flat_1.webp → flat1_email.jpg */
 export function cardEmailImage(cardImage: string) {
   const num = cardImageNumber(cardImage);

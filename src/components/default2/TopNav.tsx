@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useId, useState } from "react";
-import { Button } from "./Button";
+import { Button } from "../Button";
 import { OurServiceModal } from "./OurServiceModal";
 import { useLocale, type Locale } from "@/lib/locale";
 
@@ -95,11 +95,11 @@ export function TopNav() {
 
           <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <Image
-              src="/images/logo.webp"
+              src="/images/GF_Logotype_Stamp.png"
               alt="Greetings Folks"
-              width={484}
-              height={182}
-              className="pointer-events-auto h-12 w-auto sm:h-14 md:h-14 lg:h-14 xl:h-20 2xl:h-24"
+              width={2157}
+              height={185}
+              className="pointer-events-auto h-8 w-auto max-w-[72vw] object-contain sm:h-9 md:h-10 xl:h-12 2xl:h-14"
               priority
             />
           </div>
@@ -146,11 +146,11 @@ export function TopNav() {
             <div className="flex h-24 shrink-0 items-center justify-between px-6">
               <div className="w-10" aria-hidden />
               <Image
-                src="/images/logo.webp"
+                src="/images/GF_Logotype_Stamp.png"
                 alt="Greetings Folks"
-                width={484}
-                height={182}
-                className="h-12 w-auto"
+                width={2157}
+                height={185}
+                className="h-8 w-auto max-w-[70vw] object-contain"
                 priority
               />
               <button

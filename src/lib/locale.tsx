@@ -65,7 +65,7 @@ const UI: Record<Locale, UiMessages> = {
       "I hope your sincerity reaches someone precious to you.",
       "May your heartfelt message reach them",
       "With warmest hearts",
-      "SohHeum Hwang & GREETINGS FOLKs",
+      "Soheum Hwang & GREETINGS FOLKs",
     ],
     viewDetails: "View details",
     sendCard: "Send card",

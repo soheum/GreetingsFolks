@@ -118,7 +118,7 @@ export type Envelope = {
   layers?: readonly EnvelopeLayer[];
 };
 
-export const ENVELOPES: readonly Envelope[] = [
+const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
   {
     title: "Full Moon Dalhangari",
     subtitle: "May abundant fortune always be with you",
@@ -709,6 +709,24 @@ export const ENVELOPES: readonly Envelope[] = [
     ],
   },
 ];
+
+/** Carousel / landing peek order (flat numbers). Center card: flat_7 (featured). */
+const ENVELOPE_DISPLAY_ORDER = [3, 1, 5, 7, 9, 2, 4, 10, 6, 8] as const;
+
+function envelopeFlatNumber(envelope: Envelope): number {
+  const src =
+    envelope.layers?.find((layer) => layer.anchor === "fill")?.src ??
+    envelope.src ??
+    "";
+  return Number(src.match(/flat_(\d+)/)?.[1] ?? 0);
+}
+
+export const ENVELOPES: readonly Envelope[] = ENVELOPE_DISPLAY_ORDER.map(
+  (flat) =>
+    ENVELOPE_DEFINITIONS.find(
+      (envelope) => envelopeFlatNumber(envelope) === flat,
+    )!,
+);
 
 export const INITIAL_CENTER_INDEX = ENVELOPES.findIndex(
   (envelope) => envelope.featured,
