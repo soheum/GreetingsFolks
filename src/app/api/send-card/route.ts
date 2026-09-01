@@ -116,8 +116,7 @@ function getDeliveryWindow(serviceClass: ServiceClass) {
 }
 
 function getLinkDelay(serviceClass: ServiceClass) {
-  // Temporary short delays for testing; swap to real post times later.
-  return serviceClass === "first" ? "in 1 min" : "in 2 min";
+  return serviceClass === "first" ? "in 24 hours" : "in 72 hours";
 }
 
 function generateRefNumber() {

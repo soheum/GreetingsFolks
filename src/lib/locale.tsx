@@ -173,7 +173,7 @@ const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
     title: "딸기",
     subtitle: "행복한 일이 이어지길",
     description:
-      "풍요와 장수, 번영의 의미를 담은 초충도의 산딸기에서 영감을 받은 카드",
+      "풍요와 장수, 번영의 의미를 담은\n초충도*의 산딸기에서 영감을 받은 카드",
     descriptionNote: CHOCHUNGDO_NOTE_KO,
   },
   "Birthday Guard": {
@@ -192,13 +192,13 @@ const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
     title: "영차! 고슴도치와 영지버섯",
     subtitle: "오래도록 건강하고 풍요롭길",
     description:
-      "가을이 되어 불로장생을 상징하는 영지버섯을 나르는 고슴도치를 담은 귀여운 카드",
+      "가을이 되어 불로장생을 상징하는 영지버섯을 나르는\n고슴도치를 담은 귀여운 카드",
   },
   "Blue Night Flowers": {
     title: "푸른 이파람",
     subtitle: "풍요로운 복이 함께 하길",
     description:
-      "성공과 복 그리고 풍요를 담은 초충도의 꽃이 밤에 아름답게 핀 카드",
+      "성공과 복 그리고 풍요를 담은 초충도*의 꽃이 밤에 아름답게 핀 카드",
     descriptionNote: CHOCHUNGDO_NOTE_KO,
   },
   "Jade Rabbit's Easter": {
@@ -211,7 +211,7 @@ const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
     title: "신사임당의 가든",
     subtitle: "출세와 다산, 풍요로운 복이 함께 하길",
     description:
-      "초충도에서 영감을 받아 복이 피어나길 바라는 마음을 담은 조선시대 풍의 보타니컬 카드",
+      "초충도*에서 영감을 받아 복이 피어나길 바라는 마음을 담은\n조선시대 풍의 보타니컬 카드",
     descriptionNote: CHOCHUNGDO_NOTE_KO,
   },
   "Swallow Sijeonji": {

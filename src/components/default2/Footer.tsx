@@ -34,7 +34,7 @@ export function Footer({ className }: { className?: string } = {}) {
           <div className="order-1 flex flex-col items-center justify-start text-center md:order-2">
             {locale === "ko" ? (
               <Image
-                src="/images/logo_kr.png"
+                src="/images/logo_kr.webp"
                 alt="그리팅스 포크스"
                 width={1000}
                 height={376}
