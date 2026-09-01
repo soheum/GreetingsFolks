@@ -1,23 +1,15 @@
-"use client";
-
-import { Footer } from "@/components/default2/Footer";
-import { LandingPage } from "@/components/default2/LandingPage";
-import { LocaleProvider } from "@/lib/locale";
+import { Footer } from "@/components/Footer";
+import { PostcardStack } from "@/components/PostcardStack";
+import { TopNav } from "@/components/TopNav";
 
 export default function Default2Home() {
   return (
-    <LocaleProvider defaultLocale="ko">
-      <div
-        data-default2-scroll
-        className="h-dvh overflow-y-auto overflow-x-hidden snap-y snap-mandatory overscroll-y-contain"
-      >
-        <main className="bg-white">
-          <LandingPage />
-        </main>
-        <div className="snap-start snap-always">
-          <Footer />
-        </div>
-      </div>
-    </LocaleProvider>
+    <>
+      <main className="flex min-h-dvh flex-col overflow-hidden overscroll-x-none bg-white">
+        <TopNav />
+        <PostcardStack />
+      </main>
+      <Footer />
+    </>
   );
 }

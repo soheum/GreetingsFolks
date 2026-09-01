@@ -9,8 +9,8 @@ export function Footer({ className }: { className?: string } = {}) {
     <footer className={`bg-[#ffe8e8] ${className ?? ""}`}>
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-14 sm:gap-5 sm:py-16 md:gap-4">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-4 lg:gap-6">
-          <div className="order-2 flex flex-col items-center text-center md:order-1">
-            <div className="flex flex-col items-center gap-2">
+          <div className="order-2 flex w-full flex-col items-center text-center md:order-1">
+            <div className="flex w-full max-w-sm flex-col items-center gap-2 [&_br]:hidden md:max-w-none md:[&_br]:inline">
               <p className="text-footer">
                 <span className="font-medium">GREETINGS FOLKs</span>는
                 <br />
@@ -53,8 +53,8 @@ export function Footer({ className }: { className?: string } = {}) {
             )}
           </div>
 
-          <div className="order-3 flex flex-col items-center text-center">
-            <div className="flex flex-col items-center gap-2">
+          <div className="order-3 flex w-full flex-col items-center text-center">
+            <div className="flex w-full max-w-sm flex-col items-center gap-2 [&_br]:hidden md:max-w-none md:[&_br]:inline">
               <p className="text-footer">
                 <span className="font-medium">GREETINGS FOLKs</span> is
                 <br />
@@ -85,11 +85,11 @@ export function Footer({ className }: { className?: string } = {}) {
             aria-hidden
             width={444}
             height={366}
-            className="h-auto w-24 shrink-0 sm:w-36 md:w-44"
+            className="hidden h-auto w-24 shrink-0 sm:block sm:w-36 md:w-44"
           />
           <div className="min-w-0 flex-1">
             <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2 sm:gap-5 md:gap-6">
-              <div className="mx-auto w-full max-w-[14rem] space-y-1 sm:max-w-[16rem]">
+              <div className="mx-auto w-full max-w-sm space-y-1 sm:max-w-[16rem]">
                 <p className="text-footer font-bold">
                   <a
                     href="https://www.soheum.com/"
@@ -109,7 +109,7 @@ export function Footer({ className }: { className?: string } = {}) {
                 <a href="mailto:sohheum@gmail.com" className="hover:underline">sohheum@gmail.com</a>
                 </p>
               </div>
-              <div className="mx-auto w-full max-w-[14rem] space-y-1 sm:max-w-[16rem]">
+              <div className="mx-auto w-full max-w-sm space-y-1 sm:max-w-[16rem]">
                 <p className="text-footer font-bold">
                   <a
                     href="https://greetingsfolks.com/"
@@ -142,7 +142,26 @@ export function Footer({ className }: { className?: string } = {}) {
             aria-hidden
             width={444}
             height={366}
-            className="h-auto w-24 shrink-0 sm:w-36 md:w-44"
+            className="hidden h-auto w-24 shrink-0 sm:block sm:w-36 md:w-44"
+          />
+        </div>
+
+        <div className="flex items-center justify-center gap-10 sm:hidden">
+          <Image
+            src="/images/logo_left.webp"
+            alt=""
+            aria-hidden
+            width={444}
+            height={366}
+            className="h-auto w-24"
+          />
+          <Image
+            src="/images/logo_right.webp"
+            alt=""
+            aria-hidden
+            width={444}
+            height={366}
+            className="h-auto w-24"
           />
         </div>
 
