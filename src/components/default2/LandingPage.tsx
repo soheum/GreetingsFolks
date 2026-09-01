@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../Button";
 import { OurServiceModal } from "./OurServiceModal";
 import { EnvelopeVisual, PostcardStack } from "./PostcardStack";
@@ -368,7 +368,13 @@ function EnvelopePeek({ activeIndex }: { activeIndex: number }) {
   );
 }
 
-function LanguageSwitcher({ className = "" }: { className?: string }) {
+function LanguageSwitcher({
+  className = "",
+  onSelect,
+}: {
+  className?: string;
+  onSelect?: () => void;
+}) {
   const { locale, setLocale } = useLocale();
 
   return (
@@ -385,7 +391,10 @@ function LanguageSwitcher({ className = "" }: { className?: string }) {
             : "font-normal text-neutral-900 hover:text-red-600"
         }`}
         aria-pressed={locale === "ko"}
-        onClick={() => setLocale("ko")}
+        onClick={() => {
+          setLocale("ko");
+          onSelect?.();
+        }}
       >
         한국어
       </button>
@@ -400,7 +409,10 @@ function LanguageSwitcher({ className = "" }: { className?: string }) {
             : "font-normal text-neutral-900 hover:text-red-600"
         }`}
         aria-pressed={locale === "en"}
-        onClick={() => setLocale("en")}
+        onClick={() => {
+          setLocale("en");
+          onSelect?.();
+        }}
       >
         EN
       </button>
@@ -415,10 +427,12 @@ export function LandingPage() {
   const [progress, setProgress] = useState(0);
   const [gallery, setGallery] = useState(false);
   const [serviceOpen, setServiceOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [playIntro, setPlayIntro] = useState(true);
   const [startType, setStartType] = useState(false);
   const [typedDone, setTypedDone] = useState(false);
   const [showChrome, setShowChrome] = useState(false);
+  const menuId = useId();
   const peekIndex = ENVELOPES.length * CAROUSEL_CENTER_COPY + FEATURED_INDEX;
 
   useEffect(() => {
@@ -430,6 +444,32 @@ export function LandingPage() {
       window.clearTimeout(timerId);
     };
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  const openService = () => {
+    setMenuOpen(false);
+    setServiceOpen(true);
+  };
 
   const skipToMain = () => {
     setStartType(true);
@@ -521,6 +561,7 @@ export function LandingPage() {
   }, [progress]);
 
   const envelopePeek = 12 + progress * 30;
+  const hideHeader = gallery || (playIntro && !showChrome);
 
   const scrollToGallery = (event: { preventDefault: () => void }) => {
     event.preventDefault();
@@ -546,9 +587,9 @@ export function LandingPage() {
         <div className="sticky top-0 flex h-dvh flex-col overflow-hidden touch-pan-y overscroll-x-none">
         <header
           className={`relative flex w-full shrink-0 items-center justify-between overflow-hidden px-6 transition-[opacity,max-height,padding] duration-500 sm:px-8 md:px-10 lg:px-10 xl:px-12 2xl:px-16 ${
-            gallery
+            hideHeader
               ? "pointer-events-none max-h-0 py-0 opacity-0"
-              : `max-h-32 py-10 sm:py-12 ${playIntro ? "" : "opacity-100"}`
+              : `max-h-32 py-4 sm:py-12 ${playIntro ? "" : "opacity-100"}`
           } ${
             playIntro && !gallery
               ? showChrome
@@ -556,11 +597,15 @@ export function LandingPage() {
                 : "default2-intro-nav-wait"
               : ""
           }`}
-          aria-hidden={gallery}
+          aria-hidden={hideHeader}
         >
-          <Button variant="nav" weight="normal" onClick={() => setServiceOpen(true)}>
-            {t.ourService}
-          </Button>
+          <div className="hidden md:block">
+            <Button variant="nav" weight="normal" onClick={openService}>
+              {t.ourService}
+            </Button>
+          </div>
+
+          <div className="w-10 md:hidden" aria-hidden />
 
           <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <Image
@@ -573,8 +618,87 @@ export function LandingPage() {
             />
           </div>
 
-          <LanguageSwitcher />
+          <div className="hidden md:block">
+            <LanguageSwitcher />
+          </div>
+
+          <button
+            type="button"
+            className="relative flex h-10 w-10 items-center justify-center md:hidden"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            aria-controls={menuId}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <Image
+              src="/Hamburger.svg"
+              alt=""
+              aria-hidden
+              width={24}
+              height={24}
+              className="h-6 w-6"
+            />
+          </button>
         </header>
+
+        <p
+          role="status"
+          className={`shrink-0 bg-[#ec0000] px-4 py-2.5 text-center text-sm leading-snug whitespace-pre-line text-white md:hidden ${
+            playIntro && !showChrome && !gallery ? "mt-8" : ""
+          }`}
+        >
+          {t.desktopOnlyBanner}
+        </p>
+
+        {menuOpen ? (
+          <div
+            id={menuId}
+            className="fixed inset-0 z-50 flex flex-col bg-white md:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+          >
+            <div className="relative flex w-full shrink-0 items-center justify-between px-6 py-4 sm:px-8 sm:py-12">
+              <div className="w-10" aria-hidden />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                <Image
+                  src="/images/GF_Logotype_Stamp.png"
+                  alt="Greetings Folks"
+                  width={2157}
+                  height={185}
+                  className="h-7 w-auto max-w-[min(40vw,28rem)] object-contain mix-blend-multiply sm:h-8"
+                  priority
+                />
+              </div>
+              <button
+                type="button"
+                className="relative flex h-10 w-10 items-center justify-center"
+                aria-label="Close menu"
+                onClick={() => setMenuOpen(false)}
+              >
+                <Image
+                  src="/Hamburger.svg"
+                  alt=""
+                  aria-hidden
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                />
+              </button>
+            </div>
+            <div className="flex flex-1 flex-col items-start gap-8 px-6 pb-10 pt-8">
+              <Button
+                variant="nav"
+                weight="normal"
+                className="justify-start"
+                onClick={openService}
+              >
+                {t.ourService}
+              </Button>
+              <LanguageSwitcher onSelect={() => setMenuOpen(false)} />
+            </div>
+          </div>
+        ) : null}
 
         {gallery ? (
           <PostcardStack embedded />
