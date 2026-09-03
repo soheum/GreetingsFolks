@@ -1,7 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { Resend } from "resend";
-import type { Attachment } from "resend";
 import { cardEmailImage, closedEnvelopeImage } from "@/lib/card-images";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
@@ -54,61 +51,8 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-function contentTypeForPath(publicPath: string) {
-  if (/\.jpe?g$/i.test(publicPath)) {
-    return "image/jpeg";
-  }
-
-  if (/\.png$/i.test(publicPath)) {
-    return "image/png";
-  }
-
-  return "image/webp";
-}
-
-async function inlineImageAttachment({
-  publicPath,
-  filename,
-  contentId,
-}: {
-  publicPath: string;
-  filename: string;
-  contentId: string;
-}): Promise<Attachment> {
-  const content = await readFile(
-    join(process.cwd(), "public", publicPath.replace(/^\//, "")),
-  );
-
-  return {
-    filename,
-    content: content.toString("base64"),
-    contentType: contentTypeForPath(publicPath),
-    contentId,
-  };
-}
-
-async function buildConfirmationAttachments(cardImage: string) {
-  const envelopeImage = closedEnvelopeImage(cardImage);
-
-  return Promise.all([
-    inlineImageAttachment({
-      publicPath: envelopeImage,
-      filename: envelopeImage.split("/").at(-1) ?? "envelope.webp",
-      contentId: "gf-envelope",
-    }),
-  ]);
-}
-
-async function buildCardAttachments(cardImage: string) {
-  const image = cardEmailImage(cardImage);
-
-  return Promise.all([
-    inlineImageAttachment({
-      publicPath: image,
-      filename: image.split("/").at(-1) ?? "card.jpg",
-      contentId: "gf-card",
-    }),
-  ]);
+function publicImageUrl(origin: string, publicPath: string) {
+  return `${origin}${publicPath.startsWith("/") ? publicPath : `/${publicPath}`}`;
 }
 
 function getDeliveryWindow(serviceClass: ServiceClass) {
@@ -132,8 +76,12 @@ function parseRefNumber(value: unknown) {
   return REF_NUMBER_PATTERN.test(normalized) ? normalized : null;
 }
 
-function buildConfirmationEmail(serviceClass: ServiceClass) {
+function buildConfirmationEmail(
+  serviceClass: ServiceClass,
+  envelopeImageUrl: string,
+) {
   const deliveryWindow = getDeliveryWindow(serviceClass);
+  const safeEnvelopeImageUrl = escapeHtml(envelopeImageUrl);
 
   return `
     <!doctype html>
@@ -148,7 +96,7 @@ function buildConfirmationEmail(serviceClass: ServiceClass) {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:460px;border-collapse:collapse;">
                 <tr>
                   <td align="center" style="text-align:center;">
-                    <img src="cid:gf-envelope" alt="Envelope" width="360" style="display:block;margin:0 auto 32px;width:360px;max-width:88%;height:auto;border:0;" />
+                    <img src="${safeEnvelopeImageUrl}" alt="Envelope" width="360" style="display:block;margin:0 auto 32px;width:360px;max-width:88%;height:auto;border:0;" />
                     <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5;font-weight:500;color:#222222;">Someone wrote you a letter and it's on its way.<br />It should arrive in ${deliveryWindow} working days.</p>
                     <a href="https://greetings-folks.vercel.app/" style="display:inline-block;box-sizing:border-box;min-width:144px;background:#ec0000;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;text-transform:uppercase;color:#ffffff;">More details</a>
                   </td>
@@ -162,8 +110,15 @@ function buildConfirmationEmail(serviceClass: ServiceClass) {
   `;
 }
 
-function buildCardEmail({ cardUrl }: { cardUrl: string }) {
+function buildCardEmail({
+  cardUrl,
+  cardImageUrl,
+}: {
+  cardUrl: string;
+  cardImageUrl: string;
+}) {
   const safeCardUrl = escapeHtml(cardUrl);
+  const safeCardImageUrl = escapeHtml(cardImageUrl);
   // Button lives in its own row (not position:absolute). Absolute overlays get
   // stripped by Gmail/Outlook; a fluid <img> keeps mobile aspect ratio intact.
   const buttonStyle =
@@ -198,7 +153,7 @@ function buildCardEmail({ cardUrl }: { cardUrl: string }) {
                   <td align="center" style="padding:0;font-size:0;line-height:0;background:#DF0000;">
                     <img
                       class="card-email-hero"
-                      src="cid:gf-card"
+                      src="${safeCardImageUrl}"
                       alt="Your card has arrived"
                       width="600"
                       style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;"
@@ -219,26 +174,63 @@ function buildCardEmail({ cardUrl }: { cardUrl: string }) {
   `;
 }
 
+const PRODUCTION_SITE_ORIGIN = "https://greetings-folks.vercel.app";
+
+function isPublicSiteOrigin(origin: string) {
+  try {
+    const url = new URL(origin);
+    const host = url.hostname.toLowerCase();
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      host !== "localhost" &&
+      host !== "127.0.0.1" &&
+      host !== "::1" &&
+      !host.endsWith(".local")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function getSiteOrigin(request: Request) {
   const configuredOrigin =
     process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL;
 
   if (configuredOrigin) {
-    return configuredOrigin.replace(/\/$/, "");
+    const origin = configuredOrigin.replace(/\/$/, "");
+    if (isPublicSiteOrigin(origin)) {
+      return origin;
+    }
   }
 
   const forwardedHost = request.headers.get("x-forwarded-host");
-  const host = forwardedHost?.split(",")[0]?.trim() || request.headers.get("host");
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const host =
+    forwardedHost?.split(",")[0]?.trim() || request.headers.get("host");
+  const forwardedProto = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
   const protocol =
     forwardedProto ||
     (host?.includes("localhost") || host?.startsWith("127.") ? "http" : "https");
 
   if (host) {
-    return `${protocol}://${host}`;
+    const requestOrigin = `${protocol}://${host}`.replace(/\/$/, "");
+    if (isPublicSiteOrigin(requestOrigin)) {
+      return requestOrigin;
+    }
   }
 
-  return new URL(request.url).origin;
+  try {
+    const requestOrigin = new URL(request.url).origin;
+    if (isPublicSiteOrigin(requestOrigin)) {
+      return requestOrigin;
+    }
+  } catch {
+    // Fall through to the production site.
+  }
+
+  return PRODUCTION_SITE_ORIGIN;
 }
 
 export async function POST(request: Request) {
@@ -323,15 +315,18 @@ export async function POST(request: Request) {
   }
 
   const resend = new Resend(apiKey);
-  const confirmationAttachments = await buildConfirmationAttachments(cardImage);
+  const envelopeImageUrl = publicImageUrl(
+    siteOrigin,
+    closedEnvelopeImage(cardImage),
+  );
+  const cardImageUrl = publicImageUrl(siteOrigin, cardEmailImage(cardImage));
 
   const { data: confirmationData, error: confirmationError } =
     await resend.emails.send({
       from: fromEmail,
       to: recipientEmail,
       subject: "Keep an eye on the letterbox – a card’s on its way.",
-      html: buildConfirmationEmail(selectedServiceClass),
-      attachments: confirmationAttachments,
+      html: buildConfirmationEmail(selectedServiceClass, envelopeImageUrl),
     });
 
   if (confirmationError) {
@@ -341,15 +336,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const cardAttachments = await buildCardAttachments(cardImage);
-
   const { data: scheduledData, error: scheduledError } =
     await resend.emails.send({
       from: fromEmail,
       to: recipientEmail,
       subject: "The wait is over, your letter has arrived.",
-      html: buildCardEmail({ cardUrl }),
-      attachments: cardAttachments,
+      html: buildCardEmail({ cardUrl, cardImageUrl }),
       scheduledAt: linkDelay,
     });
 
