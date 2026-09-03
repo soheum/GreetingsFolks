@@ -644,6 +644,8 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
     subtitle: "Evergreen Happiness",
     description:
       "Featuring the evergreen pines of Irworobongdo* \nand a playful rabbit beneath a snowy moon",
+    descriptionNote:
+      "Irworobongdo (일월오봉도)* is the painting of the sun, moon and five peaks, placed behind the royal throne in Joseon palaces to symbolise the king and his authority.",
     alt: "Blue winter pine envelope",
     width: 1455,
     height: 3324,

@@ -162,6 +162,9 @@ type EnvelopeCopy = {
 const CHOCHUNGDO_NOTE_KO =
   "초충도(草蟲圖)*는 신사임당의 그림으로, ‘풀과 벌레의 그림’이라 불리며 자연의 작은 생명들을 섬세하게 담아냅니다.";
 
+const IRWOROBONGDO_NOTE_KO =
+  "일월오봉도(日月五峰圖)*는 해·달·다섯 봉우리를 그린 그림으로, 조선시대 궁궐 정전 어좌 뒤에 놓여 왕과 권력을 상징합니다.";
+
 const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
   "Full Moon Dalhangari": {
     title: "둥근 달 항아리",
@@ -224,7 +227,8 @@ const ENVELOPE_KO: Record<string, EnvelopeCopy> = {
     title: "겨울 소나무",
     subtitle: "추운 겨울에도 끄덕없는 행복을 담아",
     description:
-      "일월오봉도의 소나무와 눈 덮인 달 아래 장난치는 토끼를 담은 카드",
+      "일월오봉도*의 소나무와 눈 덮인 달 아래 장난치는 토끼를 담은 카드",
+    descriptionNote: IRWOROBONGDO_NOTE_KO,
   },
 };
 
