@@ -32,25 +32,32 @@ export function Footer() {
           </div>
 
           <div className="order-1 flex flex-col items-center justify-start text-center md:order-2">
-            {locale === "ko" ? (
-              <Image
-                src="/images/logo_kr.webp"
-                alt="그리팅스 포크스"
-                width={1000}
-                height={376}
-                className="h-auto w-52 sm:w-64 md:w-72"
-                priority
-              />
-            ) : (
-              <Image
-                src="/images/logo.webp"
-                alt="Greetings Folks"
-                width={484}
-                height={182}
-                className="h-auto w-52 sm:w-64 md:w-72"
-                priority
-              />
-            )}
+            <a
+              href="https://greetingsfolks.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-opacity hover:opacity-70"
+            >
+              {locale === "ko" ? (
+                <Image
+                  src="/images/GF_FULL_LOGO_Variation_KR.webp"
+                  alt="그리팅스 포크스"
+                  width={1647}
+                  height={632}
+                  className="h-auto w-52 sm:w-64 md:w-72"
+                  priority
+                />
+              ) : (
+                <Image
+                  src="/images/logo.webp"
+                  alt="Greetings Folks"
+                  width={484}
+                  height={182}
+                  className="h-auto w-52 sm:w-64 md:w-72"
+                  priority
+                />
+              )}
+            </a>
           </div>
 
           <div className="order-3 flex flex-col items-center text-center">
