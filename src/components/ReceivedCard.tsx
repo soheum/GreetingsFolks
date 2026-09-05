@@ -76,10 +76,8 @@ function ReceiveTopFlap({
   mode: FlapMode;
 }) {
   const widthPercent = flap.widthPercent ?? 100;
+  const topPercent = flap.topPercent ?? 0;
   const isFlat2Flap = flap.outsideSrc.includes("/flat_2_");
-  // Receive seat: flat_2 flap sits a touch high vs the pocket — nudge down (send fold keeps 0).
-  const topPercent = (flap.topPercent ?? 0) + (isFlat2Flap ? 2.5 : 0);
-  // Match PostcardStack flat_10 seam (same inset sealed + open)
   const matchesFlat10Back = flap.outsideSrc.includes("/flat_10_");
   // flat_2 / flat_10: open fill already has the open top — flap on top = seam
   if ((isFlat2Flap || matchesFlat10Back) && mode === "open") {
