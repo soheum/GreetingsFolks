@@ -681,13 +681,12 @@ function ReceiveLetter({
                       priority
                       className="h-auto w-full"
                     />
+                    {messageFields}
                   </div>
                 ) : null}
               </div>
             </div>
           </div>
-          {/* Text above the flip so it isn’t waiting on the back face */}
-          {!composeOnFront ? messageFields : null}
         </div>
       );
     }
