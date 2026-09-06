@@ -2411,7 +2411,7 @@ export function PostcardStack({
 }: {
   embedded?: boolean;
 } = {}) {
-  const { t, envelopeCopy } = useLocale();
+  const { t, locale, envelopeCopy } = useLocale();
   const mobileZoomFactor = useMobileZoomFactor();
   const [activeIndex, setActiveIndex] = useState(
     ENVELOPES.length * CAROUSEL_CENTER_COPY + INITIAL_CENTER_INDEX,
@@ -2950,6 +2950,7 @@ export function PostcardStack({
             cardImage: envelopeImageSrc(zoomedEnvelope),
             refNumber,
             serviceClass,
+            locale,
           }),
         });
 
@@ -2989,6 +2990,7 @@ export function PostcardStack({
       scheduleAction,
       senderName,
       serviceClass,
+      locale,
       t.serviceDaysFirst,
       t.serviceDaysSecond,
       zoomedEnvelope,

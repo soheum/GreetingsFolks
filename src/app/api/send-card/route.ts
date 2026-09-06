@@ -25,9 +25,11 @@ type SendCardPayload = {
   cardImage?: unknown;
   refNumber?: unknown;
   serviceClass?: unknown;
+  locale?: unknown;
 };
 
 type ServiceClass = "first" | "second";
+type EmailLocale = "en" | "ko";
 
 const REF_NUMBER_PATTERN = /^#[A-F0-9]{10}$/;
 
@@ -40,6 +42,10 @@ function parseServiceClass(value: unknown): ServiceClass | null {
     return value;
   }
   return null;
+}
+
+function parseEmailLocale(value: unknown): EmailLocale {
+  return value === "ko" ? "ko" : "en";
 }
 
 function escapeHtml(value: string) {
@@ -59,6 +65,37 @@ function getDeliveryWindow(serviceClass: ServiceClass) {
   return serviceClass === "first" ? "1-2" : "3-5";
 }
 
+function emailCopy(locale: EmailLocale, serviceClass: ServiceClass) {
+  const deliveryWindow = getDeliveryWindow(serviceClass);
+
+  if (locale === "ko") {
+    const confirmationBody =
+      serviceClass === "first"
+        ? "편지가 1-2일 안에 도착할 예정입니다. 이메일을 잘 확인해주세요!"
+        : "편지가 3-5일 안에 도착할 예정입니다. 이메일을 잘 확인해주세요!";
+
+    return {
+      confirmationSubject: "익명의 누군가가 당신에게 편지를 보냈어요!",
+      confirmationBody,
+      confirmationButton: "자세히 보기",
+      arrivalSubject: "드디어 편지가 도착했습니다!",
+      arrivalAlt: "카드가 도착했습니다",
+      arrivalButton: "카드 열어보기",
+      uppercaseButtons: false,
+    };
+  }
+
+  return {
+    confirmationSubject: "Keep an eye on the letterbox – a card’s on its way.",
+    confirmationBody: `Someone wrote you a letter and it's on its way.<br />It should arrive in ${deliveryWindow} working days.`,
+    confirmationButton: "More details",
+    arrivalSubject: "The wait is over, your letter has arrived.",
+    arrivalAlt: "Your card has arrived",
+    arrivalButton: "Open your card",
+    uppercaseButtons: true,
+  };
+}
+
 function getLinkDelay(serviceClass: ServiceClass) {
   return serviceClass === "first" ? "in 24 hours" : "in 72 hours";
 }
@@ -76,16 +113,24 @@ function parseRefNumber(value: unknown) {
   return REF_NUMBER_PATTERN.test(normalized) ? normalized : null;
 }
 
-function buildConfirmationEmail(
-  serviceClass: ServiceClass,
-  envelopeImageUrl: string,
-) {
-  const deliveryWindow = getDeliveryWindow(serviceClass);
+function buildConfirmationEmail({
+  locale,
+  serviceClass,
+  envelopeImageUrl,
+}: {
+  locale: EmailLocale;
+  serviceClass: ServiceClass;
+  envelopeImageUrl: string;
+}) {
+  const copy = emailCopy(locale, serviceClass);
   const safeEnvelopeImageUrl = escapeHtml(envelopeImageUrl);
+  const buttonTransform = copy.uppercaseButtons
+    ? "text-transform:uppercase;"
+    : "text-transform:none;";
 
   return `
     <!doctype html>
-    <html>
+    <html lang="${locale}">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
@@ -97,8 +142,8 @@ function buildConfirmationEmail(
                 <tr>
                   <td align="center" style="text-align:center;">
                     <img src="${safeEnvelopeImageUrl}" alt="Envelope" width="360" style="display:block;margin:0 auto 32px;width:360px;max-width:88%;height:auto;border:0;" />
-                    <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5;font-weight:500;color:#222222;">Someone wrote you a letter and it's on its way.<br />It should arrive in ${deliveryWindow} working days.</p>
-                    <a href="https://greetings-folks.vercel.app/" style="display:inline-block;box-sizing:border-box;min-width:144px;background:#ec0000;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;text-transform:uppercase;color:#ffffff;">More details</a>
+                    <p style="margin:0 auto 32px;max-width:340px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5;font-weight:500;color:#222222;">${copy.confirmationBody}</p>
+                    <a href="https://greetings-folks.vercel.app/" style="display:inline-block;box-sizing:border-box;min-width:144px;background:#ec0000;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;${buttonTransform}color:#ffffff;">${copy.confirmationButton}</a>
                   </td>
                 </tr>
               </table>
@@ -111,22 +156,30 @@ function buildConfirmationEmail(
 }
 
 function buildCardEmail({
+  locale,
+  serviceClass,
   cardUrl,
   cardImageUrl,
 }: {
+  locale: EmailLocale;
+  serviceClass: ServiceClass;
   cardUrl: string;
   cardImageUrl: string;
 }) {
+  const copy = emailCopy(locale, serviceClass);
   const safeCardUrl = escapeHtml(cardUrl);
   const safeCardImageUrl = escapeHtml(cardImageUrl);
+  const buttonTransform = copy.uppercaseButtons
+    ? "text-transform:uppercase;"
+    : "text-transform:none;";
   // Button lives in its own row (not position:absolute). Absolute overlays get
   // stripped by Gmail/Outlook; a fluid <img> keeps mobile aspect ratio intact.
   const buttonStyle =
-    "display:inline-block;box-sizing:border-box;min-width:144px;background:#ffffff;border:1px solid #171717;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;text-transform:uppercase;color:#171717;";
+    `display:inline-block;box-sizing:border-box;min-width:144px;background:#ffffff;border:1px solid #171717;padding:10px 24px;font-family:'neue-haas-grotesk-display','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:400;line-height:1.2;letter-spacing:0.05em;text-align:center;text-decoration:none;${buttonTransform}color:#171717;`;
 
   return `
     <!doctype html>
-    <html>
+    <html lang="${locale}">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -154,7 +207,7 @@ function buildCardEmail({
                     <img
                       class="card-email-hero"
                       src="${safeCardImageUrl}"
-                      alt="Your card has arrived"
+                      alt="${copy.arrivalAlt}"
                       width="600"
                       style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;"
                     />
@@ -162,7 +215,7 @@ function buildCardEmail({
                 </tr>
                 <tr>
                   <td align="center" style="padding:20px 16px 28px;background:#DF0000;text-align:center;">
-                    <a href="${safeCardUrl}" style="${buttonStyle}">Open your card</a>
+                    <a href="${safeCardUrl}" style="${buttonStyle}">${copy.arrivalButton}</a>
                   </td>
                 </tr>
               </table>
@@ -269,6 +322,7 @@ export async function POST(request: Request) {
   const cardImage =
     typeof json.cardImage === "string" ? json.cardImage.trim() : "";
   const serviceClass = parseServiceClass(json.serviceClass);
+  const emailLocale = parseEmailLocale(json.locale);
 
   if (!EMAIL_PATTERN.test(recipientEmail)) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
@@ -286,6 +340,7 @@ export async function POST(request: Request) {
   }
 
   const selectedServiceClass = serviceClass;
+  const copy = emailCopy(emailLocale, selectedServiceClass);
 
   if (!cardTitle || !SENDABLE_CARD_IMAGES.has(cardImage)) {
     return Response.json({ error: "This card cannot be sent yet." }, { status: 400 });
@@ -325,8 +380,12 @@ export async function POST(request: Request) {
     await resend.emails.send({
       from: fromEmail,
       to: recipientEmail,
-      subject: "Keep an eye on the letterbox – a card’s on its way.",
-      html: buildConfirmationEmail(selectedServiceClass, envelopeImageUrl),
+      subject: copy.confirmationSubject,
+      html: buildConfirmationEmail({
+        locale: emailLocale,
+        serviceClass: selectedServiceClass,
+        envelopeImageUrl,
+      }),
     });
 
   if (confirmationError) {
@@ -340,8 +399,13 @@ export async function POST(request: Request) {
     await resend.emails.send({
       from: fromEmail,
       to: recipientEmail,
-      subject: "The wait is over, your letter has arrived.",
-      html: buildCardEmail({ cardUrl, cardImageUrl }),
+      subject: copy.arrivalSubject,
+      html: buildCardEmail({
+        locale: emailLocale,
+        serviceClass: selectedServiceClass,
+        cardUrl,
+        cardImageUrl,
+      }),
       scheduledAt: linkDelay,
     });
 
