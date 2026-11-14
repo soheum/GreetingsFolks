@@ -21,9 +21,9 @@ export function Footer({ className }: { className?: string } = {}) {
                 재해석한 문구 브랜드입니다.
               </p>
               <p className="text-footer">
-                문구 구매는 2026년 4월 3일부로 마무리되었지만
+                런던의 프로덕트 디자이너 소흠님과 함께
                 <br />
-                그리팅스 포크스는 아카이브로 이어갑니다.
+                디지털 아카이브 e그리팅스 포크스 선보입니다.
               </p>
               <p className="text-footer">
                 카드를 골라 당신의 마음을 글로 전해보세요!

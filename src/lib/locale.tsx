@@ -37,6 +37,8 @@ type UiMessages = {
   sender: string;
   yourName: string;
   writeLetterPlaceholder: string;
+  /** `{count}` and `{limit}` — e.g. (0/200 words) */
+  letterWordCount: string;
   openLetterHint: string;
   desktopOnlyBanner: string;
   footerAbout: string;
@@ -88,6 +90,7 @@ const UI: Record<Locale, UiMessages> = {
     sender: "Sender",
     yourName: "Your name",
     writeLetterPlaceholder: "Write your letter here...",
+    letterWordCount: "({count}/{limit} words)",
     openLetterHint: "Click on the letter to open the card",
     desktopOnlyBanner:
       "This service is only available on desktop.\nPlease use your computer to send a card.",
@@ -134,11 +137,12 @@ const UI: Record<Locale, UiMessages> = {
     serviceType: "배송 옵션:",
     serviceFirst: "익익특급 (영업일 1–2일)",
     serviceSecond: "일반우편 (영업일 3–5일)",
-    recipient: "받는 사람",
-    recipientEmail: "받는 사람 이메일",
-    sender: "보내는 사람",
-    yourName: "보내는 사람 이름",
+    recipient: "받는 주소",
+    recipientEmail: "받는 주소",
+    sender: "받는 사람",
+    yourName: "받는 사람",
     writeLetterPlaceholder: "여기에 편지를 적으세요",
+    letterWordCount: "({count}/{limit} 단어)",
     openLetterHint: "편지를 클릭하면 카드가 열립니다",
     desktopOnlyBanner:
       "이 서비스는 데스크톱에서만 이용할 수 있습니다.\n카드를 보내려면 컴퓨터를 사용해 주세요.",

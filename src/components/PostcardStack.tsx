@@ -1956,11 +1956,7 @@ function EnvelopeVisual({
       composeStage === "addressing" ||
       composeStage === "sending" ||
       composeStage === "success");
-  const stampSrc =
-    isFlat1Envelope(envelope) ||
-    envelope.layers?.some((layer) => layer.src.includes("/flat_2.webp"))
-      ? "/images/stamp_white.webp"
-      : "/images/stamp.webp";
+  const stampSrc = "/images/new_stamp.svg";
   const usesTallAddressForm = envelope.layers?.some(
     (layer) =>
       layer.src.includes("/flat_9.webp") || layer.src.includes("/flat_10.webp"),
@@ -2004,9 +2000,9 @@ function EnvelopeVisual({
           src={stampSrc}
           alt=""
           aria-hidden
-          width={160}
-          height={160}
-          className={`pointer-events-none absolute right-[3%] top-[3%] z-50 w-[30%] max-w-[8.5rem] transition-opacity duration-300 ${
+          width={373}
+          height={225}
+          className={`pointer-events-none absolute right-[3%] top-[3%] z-50 h-auto w-[42%] max-w-[11rem] transition-opacity duration-300 ${
             showStamp ? "opacity-100" : "opacity-0"
           }`}
         />

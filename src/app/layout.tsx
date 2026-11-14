@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Handlee } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
@@ -29,10 +30,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={handlee.variable}>
+    <html lang="en" className={handlee.variable} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
-        <link rel="stylesheet" href="https://use.typekit.net/bwu5jct.css" />
+        <Script id="typekit" strategy="beforeInteractive">
+          {`(function(d) {
+  var config = {
+    kitId: 'bwu5jct',
+    scriptTimeout: 3000,
+    async: true
+  },
+  h=d.documentElement,t=setTimeout(function(){h.className=h.className.replace(/\\bwf-loading\\b/g,"")+" wf-inactive";},config.scriptTimeout),tk=d.createElement("script"),f=false,s=d.getElementsByTagName("script")[0],a;h.className+=" wf-loading";tk.src='https://use.typekit.net/'+config.kitId+'.js';tk.async=true;tk.onload=tk.onreadystatechange=function(){a=this.readyState;if(f||a&&a!="complete"&&a!="loaded")return;f=true;clearTimeout(t);try{Typekit.load(config)}catch(e){}};s.parentNode.insertBefore(tk,s)
+})(document);`}
+        </Script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
