@@ -140,11 +140,24 @@ function letterTopPercent(
   return layer.topPercent ?? 50;
 }
 
+/** Tall envelopes share one height, so they open much narrower than the wide ones. */
+const NARROW_ENVELOPE_ASPECT = 0.55;
+
+function narrowEnvelopeZoomBoost(envelope: Envelope) {
+  const aspect = envelope.width / envelope.height;
+  if (!Number.isFinite(aspect) || aspect >= NARROW_ENVELOPE_ASPECT) {
+    return 1;
+  }
+
+  return 1 + (NARROW_ENVELOPE_ASPECT - aspect) * 1.2;
+}
+
 function addressingEnvelopeScale(envelope: Envelope) {
   const letterLayer = envelope.layers?.find(
     (layer) => layer.anchor === "center",
   );
-  const baseScale = envelope.zoomScale ?? LETTER_OPEN_SCALE;
+  const baseScale =
+    (envelope.zoomScale ?? LETTER_OPEN_SCALE) * narrowEnvelopeZoomBoost(envelope);
 
   if (!letterLayer) {
     return baseScale;
@@ -161,7 +174,7 @@ function addressingEnvelopeScale(envelope: Envelope) {
 }
 
 function envelopeZoomScale(envelope: Envelope) {
-  return envelope.zoomScale ?? ZOOM_SCALE;
+  return (envelope.zoomScale ?? ZOOM_SCALE) * narrowEnvelopeZoomBoost(envelope);
 }
 
 function envelopeZoomTranslateY(envelope: Envelope) {
@@ -683,6 +696,33 @@ function activeEnvelopeOffset(
   return `calc(${offsetParts.join(" + ")})`;
 }
 
+const LETTER_WORD_LIMIT = 200;
+
+function letterWordCount(text: string) {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+/** Keep the message within the word limit once the count starts rising. */
+function capLetterMessage(next: string, previous: string) {
+  const nextCount = letterWordCount(next);
+  if (nextCount <= letterWordCount(previous) || nextCount <= LETTER_WORD_LIMIT) {
+    return next;
+  }
+
+  let seen = 0;
+  let end = 0;
+  const matcher = /\S+/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(next)) !== null && seen < LETTER_WORD_LIMIT) {
+    seen += 1;
+    end = match.index + match[0].length;
+  }
+
+  return next.slice(0, end);
+}
+
 function LetterFlipLayer({
   layer,
   envelope,
@@ -708,7 +748,7 @@ function LetterFlipLayer({
   onMessageRightChange?: (message: string) => void;
   onWritingBlur?: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const leftRef = useRef<HTMLTextAreaElement>(null);
   const rightRef = useRef<HTMLTextAreaElement>(null);
   const hasBack = letterHasBack(layer);
@@ -762,22 +802,26 @@ function LetterFlipLayer({
           (usesLiftRotateRight && composeStage === "closing-insert"));
   const leftValue = messageLeft ?? "";
   const rightValue = messageRight ?? "";
-  const textareaClassName = isFoldSplit
-    ? "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none"
-    : "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 pt-1 pb-3 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none";
+  const textareaClassName = `${
+    isFoldSplit
+      ? "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none"
+      : "card-message-input h-full min-w-0 flex-1 resize-none border-0 bg-transparent px-1 pt-1 pb-3 text-neutral-800 shadow-none outline-none focus:border-0 focus:shadow-none focus:outline-none focus-visible:outline-none"
+  }${locale === "ko" ? " letter-writing-ko" : ""}`;
 
   const handleLeftChange = (value: string) => {
     const el = leftRef.current;
+    const previousMessage = leftValue + rightValue;
 
     if (isFoldSplit) {
       const rightEl = rightRef.current;
+      const combined = capLetterMessage(value + rightValue, previousMessage);
       if (!el || !rightEl) {
-        onMessageLeftChange?.(value);
+        onMessageLeftChange?.(combined);
         return;
       }
 
       const previousBottom = rightValue;
-      const { top, bottom } = reflowFoldSplit(value + rightValue, el, rightEl);
+      const { top, bottom } = reflowFoldSplit(combined, el, rightEl);
       onMessageLeftChange?.(top);
       onMessageRightChange?.(bottom);
 
@@ -792,15 +836,20 @@ function LetterFlipLayer({
       return;
     }
 
+    const proposed = isSingleColumn ? value : value + rightValue;
+    const capped = capLetterMessage(proposed, previousMessage);
+    const editingValue = capped === proposed ? value : capped;
+    const preservedRight = capped === proposed ? rightValue : "";
+
     if (!el) {
-      onMessageLeftChange?.(value);
+      onMessageLeftChange?.(editingValue);
       if (isSingleColumn) {
         onMessageRightChange?.("");
       }
       return;
     }
 
-    const { left, overflow } = splitTextToFitColumn(value, el);
+    const { left, overflow } = splitTextToFitColumn(editingValue, el);
     onMessageLeftChange?.(left);
 
     if (isSingleColumn) {
@@ -815,7 +864,7 @@ function LetterFlipLayer({
       }
 
       const { left: fittedRight } = splitTextToFitColumn(
-        overflow + rightValue,
+        overflow + preservedRight,
         rightEl,
       );
       onMessageRightChange?.(fittedRight);
@@ -884,6 +933,11 @@ function LetterFlipLayer({
       return;
     }
 
+    if (letterWordCount(leftValue + event.key + rightValue) > LETTER_WORD_LIMIT) {
+      event.preventDefault();
+      return;
+    }
+
     const typingAtEnd =
       el.selectionStart === leftValue.length && el.selectionEnd === leftValue.length;
     if (!typingAtEnd) {
@@ -931,15 +985,24 @@ function LetterFlipLayer({
   };
 
   const handleRightChange = (value: string) => {
+    const previousMessage = leftValue + rightValue;
+    const capped = capLetterMessage(leftValue + value, previousMessage);
+    const nextRight =
+      capped === leftValue + value
+        ? value
+        : capped.startsWith(leftValue)
+          ? capped.slice(leftValue.length)
+          : capped;
+
     if (isFoldSplit) {
       const topEl = leftRef.current;
       const el = rightRef.current;
       if (!topEl || !el) {
-        onMessageRightChange?.(value);
+        onMessageRightChange?.(nextRight);
         return;
       }
 
-      const { top, bottom } = reflowFoldSplit(leftValue + value, topEl, el);
+      const { top, bottom } = reflowFoldSplit(leftValue + nextRight, topEl, el);
       onMessageLeftChange?.(top);
       onMessageRightChange?.(bottom);
       return;
@@ -947,11 +1010,11 @@ function LetterFlipLayer({
 
     const el = rightRef.current;
     if (!el) {
-      onMessageRightChange?.(value);
+      onMessageRightChange?.(nextRight);
       return;
     }
 
-    const { left } = splitTextToFitColumn(value, el);
+    const { left } = splitTextToFitColumn(nextRight, el);
     onMessageRightChange?.(left);
   };
 
@@ -996,6 +1059,11 @@ function LetterFlipLayer({
       event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
 
     if (!isPrintable) {
+      return;
+    }
+
+    if (letterWordCount(leftValue + rightValue + event.key) > LETTER_WORD_LIMIT) {
+      event.preventDefault();
       return;
     }
 
@@ -1121,10 +1189,20 @@ function LetterFlipLayer({
             onChange={(event) => handleRightChange(event.target.value)}
             onKeyDown={handleRightKeyDown}
             onBlur={onWritingBlur}
-            placeholder={isFoldSplit ? "" : "Continue here..."}
+            placeholder=""
             className={textareaClassName}
           />
         </>
+      ) : null}
+      {showComposeMessage ? (
+        <p
+          className={`letter-word-count${locale === "ko" ? " letter-writing-ko" : ""}`}
+          aria-live="polite"
+        >
+          {t.letterWordCount
+            .replace("{count}", String(letterWordCount(leftValue + rightValue)))
+            .replace("{limit}", String(LETTER_WORD_LIMIT))}
+        </p>
       ) : null}
     </div>
   );
@@ -1964,11 +2042,7 @@ export function EnvelopeVisual({
       composeStage === "addressing" ||
       composeStage === "sending" ||
       composeStage === "success");
-  const stampSrc =
-    isFlat1Envelope(envelope) ||
-    envelope.layers?.some((layer) => layer.src.includes("/flat_2.webp"))
-      ? "/images/stamp_white.webp"
-      : "/images/stamp.webp";
+  const stampSrc = "/images/new_stamp.svg";
   const usesTallAddressForm = envelope.layers?.some(
     (layer) =>
       layer.src.includes("/flat_9.webp") || layer.src.includes("/flat_10.webp"),
@@ -2012,9 +2086,9 @@ export function EnvelopeVisual({
           src={stampSrc}
           alt=""
           aria-hidden
-          width={160}
-          height={160}
-          className={`pointer-events-none absolute right-[3%] top-[3%] z-50 w-[30%] max-w-[8.5rem] transition-opacity duration-300 ${
+          width={373}
+          height={225}
+          className={`pointer-events-none absolute right-[3%] top-[3%] z-50 h-auto w-[42%] max-w-[11rem] transition-opacity duration-300 ${
             showStamp ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -2025,25 +2099,6 @@ export function EnvelopeVisual({
           }}
         >
           <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-            <label
-              htmlFor="recipient-email"
-              className="shrink-0 text-2xs uppercase text-[#ec0000] [font-family:var(--font-meta)]"
-            >
-              {t.recipient}
-            </label>
-            <input
-              id="recipient-email"
-              type="email"
-              required
-              value={recipientEmail}
-              disabled={composeStage === "sending"}
-              onChange={(event) =>
-                onRecipientEmailChange?.(event.target.value)
-              }
-              onBlur={resetMobileViewportZoom}
-              placeholder="friend@example.com"
-              className="min-w-0 border-0 bg-transparent text-right text-2xs text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60 [font-family:var(--font-meta)]"
-            />
             <label
               htmlFor="sender-name"
               className="shrink-0 text-2xs uppercase text-[#ec0000] [font-family:var(--font-meta)]"
@@ -2065,6 +2120,25 @@ export function EnvelopeVisual({
                 }
               }}
               placeholder={t.yourName}
+              className="min-w-0 border-0 bg-transparent text-right text-2xs text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60 [font-family:var(--font-meta)]"
+            />
+            <label
+              htmlFor="recipient-email"
+              className="shrink-0 text-2xs uppercase text-[#ec0000] [font-family:var(--font-meta)]"
+            >
+              {t.recipient}
+            </label>
+            <input
+              id="recipient-email"
+              type="email"
+              required
+              value={recipientEmail}
+              disabled={composeStage === "sending"}
+              onChange={(event) =>
+                onRecipientEmailChange?.(event.target.value)
+              }
+              onBlur={resetMobileViewportZoom}
+              placeholder="friend@example.com"
               className="min-w-0 border-0 bg-transparent text-right text-2xs text-neutral-700 outline-none placeholder:text-neutral-400 disabled:opacity-60 [font-family:var(--font-meta)]"
             />
           </div>
@@ -2408,8 +2482,14 @@ export function EnvelopeVisual({
 
 export function PostcardStack({
   embedded = false,
+  initialComposeIndex,
+  onExitCompose,
 }: {
   embedded?: boolean;
+  /** Envelope index in ENVELOPES. On mount, opens the write-and-send zoom for it. */
+  initialComposeIndex?: number;
+  /** When set, closing the zoom (Back, pick another) leaves the stack instead of the carousel. */
+  onExitCompose?: () => void;
 } = {}) {
   const { t, locale, envelopeCopy } = useLocale();
   const mobileZoomFactor = useMobileZoomFactor();
@@ -2432,6 +2512,7 @@ export function PostcardStack({
   const [successPhase, setSuccessPhase] = useState<SuccessPhase | null>(null);
   const [isTopFlapCompositionReady, setIsTopFlapCompositionReady] =
     useState(false);
+  const [letterRevealed, setLetterRevealed] = useState(false);
   const lastWheelAt = useRef(0);
   const swipeStartRef = useRef<{
     x: number;
@@ -2543,8 +2624,10 @@ export function PostcardStack({
     setSendError(null);
     setSuccessPhase(null);
     setIsTopFlapCompositionReady(false);
+    setLetterRevealed(false);
     resetMobileViewportZoom();
-  }, [clearActionTimers, clearZoomTimers]);
+    onExitCompose?.();
+  }, [clearActionTimers, clearZoomTimers, onExitCompose]);
 
   useEffect(() => {
     if (composeStage !== "writing") {
@@ -2712,14 +2795,16 @@ export function PostcardStack({
 
       setComposeStage("writing");
       setIsTopFlapCompositionReady(false);
+      setLetterRevealed(false);
 
-      if (envelope.topFlap) {
-        const letterLayer = envelopeLetterLayer(envelope);
-        const revealDelay = letterLayer ? letterOpenRevealMs(letterLayer) : 0;
-        scheduleAction(() => {
+      const letterLayer = envelopeLetterLayer(envelope);
+      const revealDelay = letterLayer ? letterOpenRevealMs(letterLayer) : 0;
+      scheduleAction(() => {
+        setLetterRevealed(true);
+        if (envelope.topFlap) {
           setIsTopFlapCompositionReady(true);
-        }, revealDelay);
-      }
+        }
+      }, revealDelay);
     },
     [composeStage, scheduleAction],
   );
@@ -2742,6 +2827,8 @@ export function PostcardStack({
       setDeliveryDaysLabel("");
       setSendError(null);
       setIsTopFlapCompositionReady(false);
+      setLetterRevealed(false);
+      clearZoomTimers();
 
       zoomTimerRef.current = setTimeout(() => {
         setZoomPhase("growing");
@@ -2751,8 +2838,42 @@ export function PostcardStack({
         }, ZOOM_GROW_MS);
       }, NEIGHBOR_HIDE_MS);
     },
-    [zoomedIndex],
+    [clearZoomTimers, zoomedIndex],
   );
+
+  useEffect(() => {
+    if (initialComposeIndex == null || isMobileViewport()) {
+      return;
+    }
+
+    const index = ENVELOPES.length * CAROUSEL_CENTER_COPY + initialComposeIndex;
+    setActiveIndex(index);
+    setZoomedIndex(index);
+    setZoomPhase("hiding");
+    setComposeStage(null);
+    setMessageLeft("");
+    setMessageRight("");
+    setSenderName("");
+    setRecipientEmail("");
+    setServiceClass(null);
+    setDeliveryDaysLabel("");
+    setSendError(null);
+    setIsTopFlapCompositionReady(false);
+    setLetterRevealed(false);
+    clearZoomTimers();
+
+    zoomTimerRef.current = setTimeout(() => {
+      setZoomPhase("growing");
+      zoomTimerRef.current = setTimeout(() => {
+        setZoomPhase("done");
+        zoomTimerRef.current = null;
+      }, ZOOM_GROW_MS);
+    }, NEIGHBOR_HIDE_MS);
+
+    return () => {
+      clearZoomTimers();
+    };
+  }, [clearZoomTimers, initialComposeIndex]);
 
   const handleLetterClick = useCallback(
     (index: number) => {
@@ -3005,6 +3126,174 @@ export function PostcardStack({
   const showSuccessPostbox = isSuccessFinale;
   const showZoomClose =
     (zoomPhase === "growing" || zoomPhase === "done") && !isSuccessChromeHidden;
+  const showAddressFooter =
+    composeStage === "addressing" || composeStage === "sending";
+  const showComposeFooter =
+    isZooming &&
+    (zoomPhase === "growing" || zoomPhase === "done") &&
+    Boolean(zoomedEnvelope) &&
+    !isSuccessChromeHidden &&
+    composeStage === "success";
+  const [shippingBar, setShippingBar] = useState<{
+    left: number;
+    width: number;
+    bottom: number;
+    edge: number;
+  } | null>(null);
+  const showWritingActions =
+    composeStage === "writing" &&
+    zoomPhase === "done" &&
+    letterRevealed &&
+    Boolean(zoomedEnvelope);
+  const [writingActions, setWritingActions] = useState<{
+    left: number;
+    width: number;
+    top: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!showWritingActions) {
+      setWritingActions(null);
+      return;
+    }
+
+    let frame = 0;
+    const started = performance.now();
+
+    const update = () => {
+      const field = document.getElementById("card-message-left");
+      const stage = document.querySelector("[data-postcard-stage]");
+      if (!(field instanceof HTMLElement) || !(stage instanceof HTMLElement)) {
+        return;
+      }
+
+      const envelope = field.closest("[role='img']");
+      if (!(envelope instanceof HTMLElement)) {
+        return;
+      }
+
+      const letter =
+        field.closest(
+          ".letter-flip-face, .letter-fold-opened, .letter-tri-fold-spread, .letter-insert-card",
+        ) ??
+        field.closest(".letter-compose") ??
+        field;
+
+      const stageRect = stage.getBoundingClientRect();
+      const letterRect = letter.getBoundingClientRect();
+      const envelopeRect = envelope.getBoundingClientRect();
+      const gap = 16;
+      const next = {
+        left: letterRect.left - stageRect.left,
+        width: letterRect.width,
+        top: letterRect.bottom - stageRect.top + gap,
+      };
+      const envelopeBottom = Math.min(envelopeRect.bottom, stageRect.bottom) - stageRect.top;
+      if (next.top > envelopeBottom - 24) {
+        next.top = Math.max(letterRect.bottom - stageRect.top + 8, envelopeBottom - 28);
+      }
+
+      setWritingActions((current) => {
+        if (
+          current &&
+          Math.abs(current.left - next.left) < 0.5 &&
+          Math.abs(current.width - next.width) < 0.5 &&
+          Math.abs(current.top - next.top) < 0.5
+        ) {
+          return current;
+        }
+        return next;
+      });
+    };
+
+    const tick = (now: number) => {
+      update();
+      if (now - started < 2200) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", update);
+    };
+  }, [showWritingActions]);
+
+  useLayoutEffect(() => {
+    if (!showAddressFooter) {
+      setShippingBar(null);
+      return;
+    }
+
+    let frame = 0;
+    const started = performance.now();
+
+    const update = () => {
+      const envelope = document.querySelector("[data-addressing-envelope]");
+      const stage = document.querySelector("[data-postcard-stage]");
+      if (!(envelope instanceof HTMLElement) || !(stage instanceof HTMLElement)) {
+        return;
+      }
+
+      const envelopeRect = envelope.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const envLeft = envelopeRect.left - stageRect.left;
+      const envRight = envelopeRect.right - stageRect.left;
+      const envTop = envelopeRect.top - stageRect.top;
+      const envBottom = envelopeRect.bottom - stageRect.top;
+      const visibleLeft = Math.max(envLeft, 0);
+      const visibleRight = Math.min(envRight, stageRect.width);
+      const visibleTop = Math.max(envTop, 0);
+      const visibleBottom = Math.min(envBottom, stageRect.height);
+      const bar = stage.querySelector("[data-shipping-bar]");
+      const barHeight = bar instanceof HTMLElement ? bar.offsetHeight : 0;
+      const inset = envelopeRect.height * 0.05;
+      let stripBottom = envBottom - inset;
+      stripBottom = Math.min(stripBottom, visibleBottom);
+      stripBottom = Math.max(stripBottom, Math.min(visibleBottom, visibleTop + barHeight));
+      const edge = Math.max(0, stageRect.height - envBottom);
+      const next = {
+        left: visibleLeft,
+        width: Math.max(0, visibleRight - visibleLeft),
+        edge,
+        bottom: Math.max(0, stageRect.height - stripBottom),
+      };
+
+      setShippingBar((current) => {
+        if (
+          current &&
+          Math.abs(current.left - next.left) < 0.5 &&
+          Math.abs(current.width - next.width) < 0.5 &&
+          Math.abs(current.bottom - next.bottom) < 0.5 &&
+          Math.abs(current.edge - next.edge) < 0.5
+        ) {
+          return current;
+        }
+        return next;
+      });
+    };
+
+    const tick = (now: number) => {
+      update();
+      if (now - started < 1600) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+    window.addEventListener("resize", update);
+    const observed = document.querySelector("[data-postcard-stage]");
+    const observer =
+      observed instanceof HTMLElement ? new ResizeObserver(update) : null;
+    observer?.observe(observed as HTMLElement);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+    };
+  }, [showAddressFooter, mobileZoomFactor]);
 
   const stepCarousel = useCallback(
     (direction: 1 | -1) => {
@@ -3115,6 +3404,7 @@ export function PostcardStack({
       onContextMenu={preventArtworkContextMenu}
     >
       <div
+        data-postcard-stage=""
         className={`absolute inset-0 overflow-hidden transition-colors duration-300 ${
           showSuccessPostbox ? "bg-[#DF0000]" : surfaceClass
         }`}
@@ -3277,6 +3567,9 @@ export function PostcardStack({
                     ? ` send-success-envelope send-success-envelope--${successPhase}`
                     : ""
                 }`}
+                data-addressing-envelope={
+                  shouldAddressingZoom && zoomPhase === "done" ? "" : undefined
+                }
                 style={
                   {
                     height,
@@ -3356,6 +3649,113 @@ export function PostcardStack({
             );
           })}
         </div>
+
+        {showWritingActions && writingActions ? (
+          <div
+            className="pointer-events-none absolute z-40 flex items-center justify-center gap-3"
+            style={{
+              left: writingActions.left,
+              width: writingActions.width,
+              top: writingActions.top,
+            }}
+          >
+            <Button
+              variant="outline"
+              className="pointer-events-auto"
+              onClick={(event) => {
+                event.stopPropagation();
+                setDetailsOpen(true);
+              }}
+            >
+              {t.viewDetails}
+            </Button>
+            <Button
+              variant="primary"
+              className="pointer-events-auto max-md:pointer-events-none max-md:cursor-not-allowed max-md:opacity-40"
+              disabled={!hasCardMessage(messageLeft, messageRight)}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleBottomSendCard();
+              }}
+            >
+              {t.sendCard}
+            </Button>
+          </div>
+        ) : null}
+
+        {showAddressFooter && shippingBar ? (
+          <>
+          <div
+            data-shipping-bar=""
+            className="absolute z-40"
+            style={{
+              left: shippingBar.left,
+              width: shippingBar.width,
+              bottom: shippingBar.bottom,
+            }}
+          >
+            <fieldset className="mx-auto w-[90%] max-w-full min-w-0 border-0 bg-white p-0 [min-inline-size:0]">
+              <legend className="sr-only">{t.serviceType}</legend>
+              <div className="grid min-h-12 min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,max-content)_minmax(0,1fr)] items-center px-3 py-2 sm:px-6 sm:py-3">
+                <span className="text-eyebrow shrink-0 justify-self-start">{t.serviceType}</span>
+                <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:gap-x-12">
+                  {SERVICE_CLASS_OPTIONS.map((option) => {
+                    const selected = serviceClass === option;
+                    const label =
+                      option === "first" ? t.serviceFirst : t.serviceSecond;
+
+                    return (
+                      <label
+                        key={option}
+                        className="flex max-w-full cursor-pointer items-center gap-2.5 text-left text-sm text-neutral-900"
+                        onClick={() => setServiceClass(option)}
+                      >
+                        <input
+                          type="radio"
+                          name="service-class"
+                          value={option}
+                          checked={selected}
+                          onChange={() => setServiceClass(option)}
+                          className="sr-only"
+                        />
+                        <span
+                          aria-hidden
+                          className={`flex h-4 w-4 shrink-0 border border-neutral-900 ${
+                            selected ? "bg-neutral-900" : "bg-white"
+                          }`}
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </fieldset>
+          </div>
+          <div
+            className="pointer-events-none absolute inset-x-0 z-40 flex items-center justify-center gap-3"
+            style={{ bottom: Math.max(20, shippingBar.edge - 52) }}
+          >
+            {composeStage !== "sending" ? (
+              <Button
+                variant="outline"
+                className="pointer-events-auto"
+                onClick={closeZoom}
+              >
+                {t.back}
+              </Button>
+            ) : null}
+            <Button
+              variant="primary"
+              className="pointer-events-auto"
+              disabled={!serviceClass || composeStage === "sending"}
+              onClick={handleBottomSendCard}
+            >
+              {composeStage === "sending" ? t.sending : t.sendCard}
+            </Button>
+          </div>
+          </>
+        ) : null}
 
         {showSuccessPostbox && (
           <div className="post-landing pointer-events-none absolute inset-0 z-30 flex items-end justify-center overflow-hidden md:items-center">
@@ -3472,111 +3872,26 @@ export function PostcardStack({
 
       <div
         className={`absolute inset-x-0 bottom-0 z-40 flex flex-col items-center gap-4 border-t border-neutral-200 bg-white px-6 py-4 transition-opacity duration-700 ease-out md:flex-row md:justify-between ${
-          isZooming &&
-          (zoomPhase === "growing" || zoomPhase === "done") &&
-          zoomedEnvelope &&
-          !isSuccessChromeHidden
+          showComposeFooter
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
         }`}
-        aria-hidden={
-          !(
-            isZooming &&
-            (zoomPhase === "growing" || zoomPhase === "done") &&
-            zoomedEnvelope &&
-            !isSuccessChromeHidden
-          )
-        }
+        aria-hidden={!showComposeFooter}
       >
-        {zoomedEnvelope ? (
+        {zoomedEnvelope && composeStage === "success" ? (
           <>
-            {composeStage === "success" ? (
-              <p className="min-w-0 flex-1 text-center text-sm text-neutral-900 md:text-left [font-family:var(--font-meta)]">
-                {t.cardOnItsWay.replace(
-                  "{days}",
-                  deliveryDaysLabel ||
-                    (serviceClass === "second"
-                      ? t.serviceDaysSecond
-                      : t.serviceDaysFirst),
-                )}
-              </p>
-            ) : (
-              <fieldset className="flex min-w-0 flex-1 flex-col items-center gap-2 border-0 p-0 md:flex-row md:flex-wrap md:items-center md:justify-start md:gap-x-6 md:gap-y-2">
-                <legend className="text-eyebrow sr-only">{t.serviceType}</legend>
-                <span aria-hidden className="text-eyebrow shrink-0">
-                  {t.serviceType}
-                </span>
-                <div className="flex flex-col items-center gap-2 md:flex-row md:flex-wrap md:items-center md:gap-x-6 md:gap-y-2">
-                  {SERVICE_CLASS_OPTIONS.map((option) => {
-                    const selected = serviceClass === option;
-                    const label =
-                      option === "first" ? t.serviceFirst : t.serviceSecond;
-
-                    return (
-                      <label
-                        key={option}
-                        className="flex cursor-pointer items-center gap-2 text-sm text-neutral-900"
-                        onClick={() => setServiceClass(option)}
-                      >
-                        <input
-                          type="radio"
-                          name="service-class"
-                          value={option}
-                          checked={selected}
-                          onChange={() => setServiceClass(option)}
-                          className="sr-only"
-                        />
-                        <span
-                          aria-hidden
-                          className="flex h-4 w-4 shrink-0 items-center justify-center border border-neutral-900 bg-white"
-                        >
-                          {selected ? (
-                            <span className="block h-2 w-2 bg-neutral-900" />
-                          ) : null}
-                        </span>
-                        {label}
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            )}
+            <p className="min-w-0 flex-1 text-center text-sm text-neutral-900 md:text-left [font-family:var(--font-meta)]">
+              {t.cardOnItsWay.replace(
+                "{days}",
+                deliveryDaysLabel ||
+                  (serviceClass === "second"
+                    ? t.serviceDaysSecond
+                    : t.serviceDaysFirst),
+              )}
+            </p>
             <div className="flex shrink-0 items-center gap-3">
-              {composeStage !== "sending" && composeStage !== "success" ? (
-                <Button variant="outline" onClick={closeZoom}>
-                  {t.back}
-                </Button>
-              ) : null}
-              <Button
-                variant="primary"
-                onClick={handleBottomSendCard}
-                disabled={
-                  (composeStage === "writing" &&
-                    (!hasCardMessage(messageLeft, messageRight) ||
-                      !serviceClass)) ||
-                  ((composeStage === "addressing" ||
-                    composeStage === "sending") &&
-                    !serviceClass)
-                }
-              >
-                {composeStage === "sending" && (
-                  <span
-                    aria-hidden
-                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
-                  />
-                )}
-                {composeStage === "success"
-                  ? t.pickAnother
-                  : composeStage === "sending"
-                    ? t.sending
-                    : composeStage === "addressing"
-                      ? t.send
-                      : t.sendCard}
-                {composeStage !== "sending" && composeStage !== "success" && (
-                  <span aria-hidden className="text-sm leading-none">
-                    ↗
-                  </span>
-                )}
+              <Button variant="primary" onClick={handleBottomSendCard}>
+                {t.pickAnother}
               </Button>
             </div>
           </>

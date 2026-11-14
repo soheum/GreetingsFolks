@@ -623,7 +623,7 @@ const ENVELOPE_DEFINITIONS: readonly Envelope[] = [
         anchor: "center",
         zIndex: 5,
         widthPercent: 80,
-        topPercent: 72,
+        topPercent: 64,
         letterOpenMotion: "lift-rotate-right",
         composeLayout: "single",
         /* Upright write area on landscape letter: inset-[top_right_bottom_left] */

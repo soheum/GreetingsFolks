@@ -287,7 +287,8 @@ body.envelope-zoom-active footer {
    .postcard-stack center is ~2vh shorter so the home carousel clears TopNav. */
 .postcard-stack,
 .receive-envelope-stage,
-.default2-landing {
+.default2-landing,
+.card-gallery {
   --envelope-side-height: 30.7vh;
   --carousel-chrome-offset: 13rem;
 }
@@ -297,7 +298,8 @@ body.envelope-zoom-active footer {
 }
 
 .receive-envelope-stage,
-.default2-landing {
+.default2-landing,
+.card-gallery {
   --envelope-center-height: 48.5vh;
 }
 
@@ -311,7 +313,8 @@ body.envelope-zoom-active footer {
 @media (min-width: 640px) {
   .postcard-stack,
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-side-height: 33.9vh;
     --carousel-chrome-offset: 12rem;
   }
@@ -321,7 +324,8 @@ body.envelope-zoom-active footer {
   }
 
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-center-height: 52.5vh;
   }
 }
@@ -329,7 +333,8 @@ body.envelope-zoom-active footer {
 @media (min-width: 768px) {
   .postcard-stack,
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-side-height: 42vh;
     --carousel-chrome-offset: 9rem;
   }
@@ -339,7 +344,8 @@ body.envelope-zoom-active footer {
   }
 
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-center-height: 65.5vh;
   }
 }
@@ -347,7 +353,8 @@ body.envelope-zoom-active footer {
 @media (min-width: 1024px) {
   .postcard-stack,
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-side-height: 42vh;
   }
 
@@ -356,7 +363,8 @@ body.envelope-zoom-active footer {
   }
 
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-center-height: 65.5vh;
   }
 }
@@ -364,7 +372,8 @@ body.envelope-zoom-active footer {
 @media (min-width: 1280px) {
   .postcard-stack,
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-side-height: 40.4vh;
   }
 
@@ -373,7 +382,8 @@ body.envelope-zoom-active footer {
   }
 
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-center-height: 61.8vh;
   }
 }
@@ -381,7 +391,8 @@ body.envelope-zoom-active footer {
 @media (min-width: 1536px) {
   .postcard-stack,
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-side-height: 42vh;
   }
 
@@ -390,94 +401,75 @@ body.envelope-zoom-active footer {
   }
 
   .receive-envelope-stage,
-  .default2-landing {
+  .default2-landing,
+.card-gallery {
     --envelope-center-height: 63.8vh;
   }
 }
 
-/* /default2 first-load: nav → copy → envelopes */
-.default2-intro-nav-wait {
-  opacity: 0;
-  transform: translateY(-100%);
+/* Gallery menu: a little larger than the landing carousel, same proportions. */
+.card-gallery {
+  --envelope-side-height: 35vh;
+  --envelope-center-height: 55vh;
 }
 
-.default2-intro-nav {
-  animation: default2-intro-from-top 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+@media (min-width: 640px) {
+  .card-gallery {
+    --envelope-side-height: 38.5vh;
+    --envelope-center-height: 59.5vh;
+  }
 }
 
-.default2-intro-text {
-  animation: default2-intro-fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) 380ms both;
+@media (min-width: 768px) {
+  .card-gallery {
+    --envelope-side-height: 48vh;
+    --envelope-center-height: 74vh;
+  }
 }
 
-.default2-intro-envelopes {
-  animation: default2-intro-from-bottom 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+@media (min-width: 1280px) {
+  .card-gallery {
+    --envelope-side-height: 46vh;
+    --envelope-center-height: 70vh;
+  }
 }
 
-@keyframes default2-intro-from-top {
+@media (min-width: 1536px) {
+  .card-gallery {
+    --envelope-side-height: 48vh;
+    --envelope-center-height: 72vh;
+  }
+}
+
+/* Card gallery: directional cursors for the previous and next halves. */
+.gallery-cursor-prev {
+  cursor: url("/cursors/arrow-left.svg") 5 16, w-resize;
+}
+
+.gallery-cursor-next {
+  cursor: url("/cursors/arrow-right.svg") 27 16, e-resize;
+}
+
+/* Korean landing: slow envelope strip under the 서비스 소개 image.
+   --marquee-distance must equal one envelope set (widths + gaps) for a seamless loop. */
+.envelope-marquee {
+  animation: envelope-marquee var(--marquee-duration, 160s) linear infinite;
+  will-change: transform;
+}
+
+@keyframes envelope-marquee {
   from {
-    opacity: 0;
-    transform: translateY(-100%);
+    transform: translateX(0);
   }
 
   to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes default2-intro-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(1.25rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes default2-intro-from-bottom {
-  from {
-    opacity: 0;
-    transform: translateY(40%);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.default2-type-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  margin-left: 0.08em;
-  vertical-align: -0.12em;
-  background: #404040;
-  animation: default2-cursor-blink 1s step-end infinite;
-}
-
-@keyframes default2-cursor-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0;
+    transform: translateX(calc(-1 * var(--marquee-distance)));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .default2-intro-nav-wait,
-  .default2-intro-nav,
-  .default2-intro-text,
-  .default2-intro-envelopes {
+  .envelope-marquee {
     animation: none;
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -1753,10 +1745,39 @@ body.envelope-zoom-active footer {
   font-size: var(--text-letter);
   line-height: var(--text-letter--line-height);
   border: none;
-  background: transparent;
+  background-color: transparent;
+  /* One dotted rule along the bottom of every text line. */
+  background-image: radial-gradient(
+    circle at 50% calc(100% - 0.08em),
+    #c3c3c3 0.055em,
+    transparent 0.07em
+  );
+  background-size: 0.42em 1lh;
+  background-repeat: repeat;
+  background-origin: content-box;
+  background-clip: content-box;
   box-shadow: none;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
+}
+
+.letter-compose-columns {
+  box-sizing: border-box;
+  padding-bottom: 2.4em;
+}
+
+.letter-word-count {
+  position: absolute;
+  right: 3%;
+  bottom: 7%;
+  z-index: 2;
+  margin: 0;
+  font-family: var(--font-meta), sans-serif;
+  font-size: calc(var(--text-letter) * 1.05);
+  line-height: 1;
+  color: #8a8a8a;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .card-message-input:focus,
@@ -1773,6 +1794,16 @@ body.envelope-zoom-active footer {
 .card-message-input::placeholder {
   font-family: var(--font-handlee), "Handlee", cursive;
   opacity: 0.55;
+}
+
+/* Korean letter writing only. Chilgok halmae hand from the Typekit kit. */
+.letter-writing-ko,
+.letter-word-count.letter-writing-ko {
+  font-family: "chilgok-choo-yueul", sans-serif;
+}
+
+.letter-writing-ko::placeholder {
+  font-family: "chilgok-choo-yueul", sans-serif;
 }
 
 .letter-compose--ready,
